@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="StockLens">
+<title>StockLens Pro</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:#0a0e1a;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+input,button{outline:none;-webkit-appearance:none;font-family:inherit}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.fade-in{animation:fadeIn .25s ease}
+.pulse{animation:pulse 1.8s infinite}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-thumb{background:#2d3748;border-radius:2px}
+.card{background:#111827;border:1px solid #1e2736;border-radius:14px;padding:16px;margin-bottom:10px}
+.chip{border:none;cursor:pointer;transition:all .15s}
+.chip:active{transform:scale(.95)}
+.row{padding:13px 16px;border-bottom:1px solid #0f1624;cursor:pointer;display:flex;align-items:center;gap:12px;transition:background .1s}
+.row:active{background:#111827}
+.hscroll{display:flex;gap:6px;overflow-x:auto;padding:8px 16px;-webkit-overflow-scrolling:touch}
+.hscroll::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;padding:9px 14px;border-radius:9px;font-size:12px;cursor:pointer;border:1px solid #1e2736;background:#111827;color:#6b7280;transition:all .15s;white-space:nowrap}
+.tab.active{background:#0f2a22;border-color:#00e5a0;color:#00e5a0;font-weight:700}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.sbar-bg{background:#1a1f2e;border-radius:4px;height:5px;width:100%;margin-top:6px;overflow:hidden}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tbl{width:100%;border-collapse:collapse}
+.tbl td{padding:10px 0;border-bottom:1px solid #1a2030;font-size:13px;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.sticky-hdr{position:sticky;top:0;z-index:30;background:#0a0e1a}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const FKEY='d8db4hhr01qub2pvu8egd8db4hhr01qub2pvu8f0';
+async function getQ(sym){try{const r=await fetch('https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(sym)+'&token='+FKEY);if(!r.ok)return null;const d=await r.json();if(d&&d.c>0)return d;}catch(e){}return null;}
+async function getC(sym){try{const to=Math.floor(Date.now()/1000),from=to-182*86400;const r=await fetch('https://finnhub.io/api/v1/stock/candle?symbol='+encodeURIComponent(sym)+'&resolution=W&from='+from+'&to='+to+'&token='+FKEY);if(!r.ok)return null;const d=await r.json();if(d&&d.s==='ok'&&d.c&&d.c.length>3)return d;}catch(e){}return null;}
+const DB=[
+{t:'NVDA',n:'NVIDIA',s:'AI Chips',cat:'Semis',sc:9,bw:8,wa:10,gs:9,qu:10,pe:32.9,ps:20,gm:74.2,rg:70,om:64,de:0.07,fcf:60,kurs:135,s1:115,s2:95,w1:155,w2:180,ez:'110-128$',ef:'#00e5a0',eb:'Günstig',ez_t:'PEG 0.49 - fundamental günstig. Jeder Rücksetzer 110-125$ ist Kaufgelegenheit.',p1:'155-180$',p3:'220-320$',up1:'+22%',up3:'+115%',sent:'Sehr Bullisch',sig:'🟢 Stark Bullisch',trend:'Mega-Aufwärtstrend intakt. Blackwell-Nachfrage > Angebot.',sum:'Unternehmen der Dekade. 70% Wachstum, 64% OM, FCF 60+ Mrd. $. KGV 33 bei PEG 0.49.',bw_t:'KGV 33 bei 70% Wachstum ist fundamental günstig.',wa_t:'70% Wachstum bei 253 Mrd. $ TTM. Data Center +75% YoY.',gs_t:'D/E 0.07. FCF 60+ Mrd. $. ROE 114%. Festung.',qu_t:'Jensen Huang - visionärster CEO seit Jobs. CUDA als Moat.',st:['CUDA-Moat unlösbar','Blackwell 2-3 Jahre vorn','FCF 60 Mrd. $'],ri:['China-Exportbeschränkungen','AMD/Custom Chips','Sensitiv bei Verlangsamung'],qrev:'81,6 Mrd. $',qbr:'+7%',qeps:'0,96 $',qbe:'+9%',qm:'73,5%',qi:'Q1 FY2027 - Rekord. Data Center +73% YoY.',ar1:'~320 Mrd. $ FY27',ar2:'~410 Mrd. $ FY28',ae1:'~4,40 $ FY27',ae2:'~5,80 $ FY28',guid:'Q2 FY27: ~95 Mrd. $. Blackwell Nachfrage > Angebot.',rat:'Strong Buy',tgt:'175$',ac:63},
+{t:'META',n:'Meta Platforms',s:'Social Media / AI / VR',cat:'Social',sc:9,bw:9,wa:8,gs:9,qu:8,pe:22,ps:7.5,gm:81,rg:22,om:41,de:0.12,fcf:52,kurs:628,s1:540,s2:460,w1:700,w2:800,ez:'530-600$',ef:'#00e5a0',eb:'Günstig',ez_t:'KGV 22 für Mag-7 ist Schnäppchen. Rücksetzer 540-600$ kaufen.',p1:'700-780$',p3:'950-1200$',up1:'+16%',up3:'+70%',sent:'Sehr Bullisch',sig:'🟢 Stark Bullisch',trend:'Starker Aufwärtstrend seit 2022.',sum:'Günstigstes Mag-7. KGV 22 bei +33% Wachstum und 52 Mrd. FCF.',bw_t:'KGV 22 bei 41% Margin = klares Schnäppchen.',wa_t:'Q1 2026: +33% auf 56,3 Mrd. $. 3,56 Mrd. DAP.',gs_t:'FCF 52 Mrd. $, Marge 81%, D/E 0.12.',qu_t:'Zuckerberg hat Meta nach 2022 neu erfunden.',st:['KGV 22 günstigster Mag-7','FCF 52 Mrd. $','3,56 Mrd. tägl. Nutzer'],ri:['Reality Labs verbrennt Mrd.','EU-Regulierung','Capex 125-145 Mrd.'],qrev:'56,3 Mrd. $',qbr:'+7%',qeps:'6,43 $',qbe:'+14%',qm:'41,5%',qi:'Q1 2026 - Bestes Quartal aller Zeiten.',ar1:'~235 Mrd. $ 2026',ar2:'~278 Mrd. $ 2027',ae1:'~27 $ 2026',ae2:'~33 $ 2027',guid:'Q2: 56,5-59,5 Mrd. $. Capex 125-145 Mrd. $.',rat:'Strong Buy',tgt:'780$',ac:55},
+{t:'MSFT',n:'Microsoft',s:'Cloud / Enterprise / AI',cat:'Software',sc:9,bw:7,wa:8,gs:9,qu:9,pe:34.5,ps:12.1,gm:69.4,rg:16,om:45,de:0.31,fcf:70,kurs:455,s1:415,s2:375,w1:490,w2:530,ez:'405-440$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer auf 415-440$ ist idealer Langfrist-Einstieg.',p1:'490-530$',p3:'620-720$',up1:'+12%',up3:'+45%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Gesunder Aufwärtstrend. Azure als Hauptkatalysator.',sum:'Enterprise-König. Azure +29%, Copilot monetarisiert KI, 45% OM.',bw_t:'KGV 34 für 45% Margin und 16% Wachstum sehr fair.',wa_t:'Azure +29% YoY. Copilot läuft an.',gs_t:'D/E 0.31, FCF 70 Mrd. $.',qu_t:'Satya Nadella: KI-Company Nr. 1.',st:['Azure +29% YoY','Copilot in 400 Mio. Nutzern','FCF 70 Mrd. $'],ri:['OpenAI teuer','Antitrust','Wenig Spielraum'],qrev:'70,1 Mrd. $',qbr:'+4%',qeps:'3,46 $',qbe:'+6%',qm:'45,1%',qi:'Q3 FY2025 - Azure +29%. Alle Segmente wachsen.',ar1:'~280 Mrd. $ FY26',ar2:'~320 Mrd. $ FY27',ae1:'~14,50 $ FY26',ae2:'~17 $ FY27',guid:'Azure Q4: 35-36%. KI-Capex massiv.',rat:'Strong Buy',tgt:'530$',ac:58},
+{t:'AMZN',n:'Amazon',s:'Cloud / E-Commerce / AI',cat:'Cloud',sc:9,bw:8,wa:8,gs:8,qu:9,pe:38,ps:3.8,gm:49.5,rg:11,om:11,de:0.8,fcf:38,kurs:215,s1:185,s2:165,w1:240,w2:270,ez:'185-210$',ef:'#f5c518',eb:'Fair',ez_t:'KUV 3.8 extrem günstig. Rücksetzer 190-200$ nutzen.',p1:'240-265$',p3:'320-400$',up1:'+17%',up3:'+65%',sent:'Sehr Bullisch',sig:'🟢 Bullisch',trend:'Aufwärtstrend. AWS auf Rekordniveau.',sum:'AWS auf höchstem Tempo seit 15 Quartalen. KUV 3.8 = günstigstes Qualitätsunternehmen.',bw_t:'KGV 38 - AWS ist 70%+ des Gewinns. KUV 3.8 sehr günstig.',wa_t:'AWS Q1 2026 Rekordtempo.',gs_t:'FCF 38 Mrd. $ steigend.',qu_t:'Andy Jassy: KI-First. 100 Mrd. $ Investments 2026.',st:['AWS Rekordwachstum','Prime Moat unangreifbar','FCF 38 Mrd. $'],ri:['Antitrust','Capex >100 Mrd.','Retail-Margen dünn'],qrev:'155,7 Mrd. $',qbr:'+5%',qeps:'1,59 $',qbe:'+21%',qm:'11,8%',qi:'Q1 2026 - AWS +17%. Beste OM aller Zeiten.',ar1:'~660 Mrd. $ 2026',ar2:'~750 Mrd. $ 2027',ae1:'~6,80 $ 2026',ae2:'~9,20 $ 2027',guid:'Q2 2026: 159-164 Mrd. $.',rat:'Strong Buy',tgt:'265$',ac:62},
+{t:'GOOGL',n:'Alphabet (Google)',s:'Digital Ads / Cloud / AI',cat:'Social',sc:8,bw:8,wa:7,gs:10,qu:8,pe:19.8,ps:6.1,gm:57,rg:12,om:32,de:0.08,fcf:72,kurs:172,s1:148,s2:128,w1:195,w2:220,ez:'145-165$',ef:'#00e5a0',eb:'Günstig',ez_t:'KGV 19 historisch günstig. Rücksetzer 148-165$ attraktiv.',p1:'195-215$',p3:'260-320$',up1:'+18%',up3:'+65%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Aufwärtstrend. Cloud +28% als Katalysator.',sum:'Günstigster Mega-Cap. KGV 19, Cloud +28%, 108 Mrd. $ Cash.',bw_t:'KGV 19 historisch günstig.',wa_t:'Cloud +28% YoY. Search dominant.',gs_t:'D/E 0.08. 108 Mrd. $ Cash. FCF 72 Mrd. $.',qu_t:'Gemini holt auf. Antitrust bleibt Risiko.',st:['KGV 19 günstig','Cloud +28%','108 Mrd. $ Cash'],ri:['KI-Suche kannibalisiert Search','Antitrust','Werbemarkt zyklisch'],qrev:'90,2 Mrd. $',qbr:'+6%',qeps:'2,81 $',qbe:'+15%',qm:'33,9%',qi:'Q1 2026 - Cloud +28%. Search stabil.',ar1:'~375 Mrd. $ 2026',ar2:'~420 Mrd. $ 2027',ae1:'~11,50 $ 2026',ae2:'~13,80 $ 2027',guid:'Cloud beschleunigt. Gemini startet.',rat:'Strong Buy',tgt:'215$',ac:54},
+{t:'AAPL',n:'Apple',s:'Consumer Electronics / Services',cat:'Hardware',sc:8,bw:6,wa:5,gs:7,qu:9,pe:32.1,ps:8.2,gm:46.3,rg:4,om:31.5,de:1.97,fcf:108,kurs:202,s1:178,s2:155,w1:225,w2:250,ez:'170-190$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 175-190$ bietet besseres Risiko-Rendite.',p1:'220-240$',p3:'260-310$',up1:'+14%',up3:'+42%',sent:'Neutral-Bullisch',sig:'🟡 Neutral',trend:'Seitwärtsbewegung. Apple Intelligence als Katalysator.',sum:'FCF 108 Mrd. $ - größte Cash-Maschine. Services wächst 16%.',bw_t:'KGV 32 fair. Services 77% Marge.',wa_t:'4% Gesamt. Services +16%.',gs_t:'FCF 108 Mrd. $ - Weltrekord.',qu_t:'Tim Cook solid. KI-Integration langsamer.',st:['FCF 108 Mrd. $','Services 77% Marge','1 Mrd. iPhones'],ri:['Wachstumsverlangsamung','China-Abhängigkeit','KI hinkt'],qrev:'95,4 Mrd. $',qbr:'+2%',qeps:'1,65 $',qbe:'+5%',qm:'31,7%',qi:'Q2 FY2025 - Services +14%.',ar1:'~405 Mrd. $ FY26',ar2:'~435 Mrd. $ FY27',ae1:'~7,30 $ FY26',ae2:'~8,10 $ FY27',guid:'Services als Haupttreiber. Apple Intelligence.',rat:'Buy',tgt:'235$',ac:45},
+{t:'NOW',n:'ServiceNow',s:'Enterprise SaaS / AI',cat:'Software',sc:7,bw:6,wa:8,gs:9,qu:8,pe:60.8,ps:7.5,gm:76.6,rg:22,om:14.7,de:0.21,fcf:4.6,kurs:102,s1:88,s2:72,w1:125,w2:150,ez:'72-95$',ef:'#00e5a0',eb:'Günstig',ez_t:'DCA 80-100$ ist solide. Nahe Support-Zone 88-95$.',p1:'135-160$',p3:'180-240$',up1:'+40%',up3:'+110%',sent:'Bullisch (Contrarian)',sig:'🟡 Neutral',trend:'Abwärtstrend 12M. Stabilisierung 88-95$ sichtbar.',sum:'SaaS-Weltklasse. 22% Wachstum, 76% Marge. -50% macht Einstieg attraktiv.',bw_t:'Forward-KGV ~23 fair. PEG 0.95.',wa_t:'Now Assist +130%, RPO 27,7 Mrd. $.',gs_t:'D/E 0.21, FCF 4,6 Mrd. $.',qu_t:'Bill McDermott - Top-CEO. Hohe Switching Costs.',st:['RPO 27,7 Mrd. $','Now Assist +130%','FCF 4,6 Mrd. $'],ri:['KI-Agenten Disruption','Armis belastet','Marktangst'],qrev:'3,77 Mrd. $',qbr:'+2%',qeps:'3,41 $',qbe:'-14%',qm:'15,2%',qi:'Q1 2026 - Umsatz gut, EPS verfehlte.',ar1:'~16,5 Mrd. $ 2026',ar2:'~20 Mrd. $ 2027',ae1:'~16 $ 2026',ae2:'~20 $ 2027',guid:'2026 leicht gesenkt. Now Assist Haupttreiber.',rat:'Strong Buy',tgt:'143$',ac:48},
+{t:'PLTR',n:'Palantir',s:'AI / Defense Software',cat:'Software',sc:7,bw:3,wa:10,gs:9,qu:9,pe:153,ps:45,gm:84,rg:56,om:38,de:0,fcf:1.2,kurs:125,s1:100,s2:80,w1:145,w2:175,ez:'95-110$',ef:'#ff4d6d',eb:'Teuer',ez_t:'Nach +300% in 12M: Warten auf Rücksetzer 95-110$.',p1:'110-160$',p3:'180-300$',up1:'+12%',up3:'+100%',sent:'Spekulativ Bullisch',sig:'🔴 Überkauft',trend:'Extremer Aufwärtstrend +300%. Rücksetzer möglich.',sum:'85% Umsatzwachstum spektakulär. KGV 153 macht Fehler teuer.',bw_t:'KGV 153 extrem. Wette auf hohes Wachstum.',wa_t:'85% Wachstum Q1 2026.',gs_t:'Schuldenfrei. 8+ Mrd. $ Cash.',qu_t:'Alex Karp visionär aber polarisierend.',st:['85% Wachstum','84% Bruttomarge','Schuldenfrei'],ri:['KGV 153','Wachstum >40% nötig','Regierungsabhängigkeit'],qrev:'883 Mio. $',qbr:'+7%',qeps:'0,13 $',qbe:'+41%',qm:'38,4%',qi:'Q1 2026 - US Commercial +71%.',ar1:'~4,5 Mrd. $ 2026',ar2:'~6,2 Mrd. $ 2027',ae1:'~0,52 $ 2026',ae2:'~0,70 $ 2027',guid:'FY2026: 4,49-4,53 Mrd. $.',rat:'Hold',tgt:'110$',ac:22},
+{t:'ADBE',n:'Adobe',s:'Creative / AI Software',cat:'Software',sc:8,bw:7,wa:7,gs:9,qu:9,pe:29,ps:9.5,gm:88.7,rg:11,om:35,de:0.25,fcf:7.8,kurs:415,s1:370,s2:320,w1:460,w2:510,ez:'360-400$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 360-390$ ideal.',p1:'460-500$',p3:'580-680$',up1:'+14%',up3:'+45%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Erholung nach Figma. Aufwärtstrend neu.',sum:'88% Bruttomarge. Firefly AI als Wachstumstreiber.',bw_t:'KGV 29 fair für 88% Marge.',wa_t:'11% Wachstum. Firefly startet.',gs_t:'FCF 7,8 Mrd. $.',qu_t:'Creative Cloud Monopol.',st:['88% Bruttomarge','Firefly AI','Creative Cloud Monopol'],ri:['Canva','Verlangsamung','KI senkt Pricing'],qrev:'5,71 Mrd. $',qbr:'+1%',qeps:'4,97 $',qbe:'+3%',qm:'35,2%',qi:'Q1 FY2025 - Firefly wächst.',ar1:'~24 Mrd. $ FY26',ar2:'~27 Mrd. $ FY27',ae1:'~21 $ FY26',ae2:'~24 $ FY27',guid:'FY2026: 23,3-23,55 Mrd. $.',rat:'Buy',tgt:'490$',ac:35},
+{t:'ORCL',n:'Oracle',s:'Cloud / Enterprise Database',cat:'Software',sc:7,bw:6,wa:7,gs:6,qu:7,pe:42,ps:8.8,gm:71,rg:12,om:30,de:8.5,fcf:12,kurs:188,s1:165,s2:142,w1:210,w2:235,ez:'158-178$',ef:'#f5c518',eb:'Fair',ez_t:'OCI +52% YoY. Rücksetzer 165-178$ attraktiv.',p1:'210-230$',p3:'270-330$',up1:'+16%',up3:'+52%',sent:'Bullisch',sig:'🟢 Leicht Bullisch',trend:'Starker Aufwärtstrend durch Cloud.',sum:'OCI wächst 52%. Backlog >130 Mrd. $.',bw_t:'KGV 42 fair.',wa_t:'OCI +52%.',gs_t:'FCF 12 Mrd. $. Hohe Schulden.',qu_t:'Larry Ellison visionär.',st:['OCI +52%','Datenbankmonopol','Backlog >130 Mrd. $'],ri:['Sehr hohe Schulden','AWS/Azure','Legacy stagniert'],qrev:'14,1 Mrd. $',qbr:'+3%',qeps:'1,47 $',qbe:'+5%',qm:'30,2%',qi:'Q3 FY2025 - Cloud +49%.',ar1:'~59 Mrd. $ FY26',ar2:'~68 Mrd. $ FY27',ae1:'~6,50 $ FY26',ae2:'~8 $ FY27',guid:'OCI weiter 50%+ Wachstum.',rat:'Buy',tgt:'220$',ac:25},
+{t:'CRM',n:'Salesforce',s:'CRM / Enterprise SaaS',cat:'Software',sc:7,bw:7,wa:6,gs:8,qu:7,pe:27,ps:7,gm:77,rg:9,om:19,de:0.18,fcf:12.5,kurs:268,s1:235,s2:205,w1:298,w2:330,ez:'228-255$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 235-255$ gutes Risiko-Rendite.',p1:'298-325$',p3:'370-450$',up1:'+15%',up3:'+55%',sent:'Neutral-Bullisch',sig:'🟡 Neutral',trend:'Seitwärtstrend. Agentforce als Katalysator.',sum:'CRM-Marktführer. Agentforce könnte Wachstum entfachen.',bw_t:'KGV 27 fair bis leicht teuer.',wa_t:'Agentforce rapide wachsend.',gs_t:'D/E 0.18, FCF 12,5 Mrd. $.',qu_t:'Benioff visionär. Agentforce nächster Hebel.',st:['CRM-Marktführer','Agentforce KI','FCF 12,5 Mrd. $'],ri:['9% Wachstum schwach','MSFT+NOW','Übernahmen vernichteten Kapital'],qrev:'9,83 Mrd. $',qbr:'+2%',qeps:'2,78 $',qbe:'+4%',qm:'19,3%',qi:'Q1 FY2026 - Agentforce Traction.',ar1:'~40 Mrd. $ FY26',ar2:'~45 Mrd. $ FY27',ae1:'~11,50 $ FY26',ae2:'~13,50 $ FY27',guid:'Wachstum auf 12-15% erwartet.',rat:'Buy',tgt:'325$',ac:40},
+{t:'INTU',n:'Intuit',s:'Financial Software / AI',cat:'Software',sc:7,bw:6,wa:6,gs:8,qu:8,pe:52,ps:11.5,gm:79,rg:14,om:20,de:0.42,fcf:4.2,kurs:620,s1:560,s2:490,w1:685,w2:760,ez:'545-595$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 550-590$ ideal.',p1:'685-740$',p3:'820-960$',up1:'+13%',up3:'+42%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend. KI startet.',sum:'TurboTax + QuickBooks Monopol. 79% Marge.',bw_t:'KGV 52 für Monopol fair.',wa_t:'14% Wachstum.',gs_t:'FCF 4,2 Mrd. $.',qu_t:'KI-first Strategie.',st:['TurboTax/QuickBooks Monopol','79% Bruttomarge','KI-Assistent'],ri:['IRS Free File','Preislimits','Verlangsamung'],qrev:'3,84 Mrd. $',qbr:'+2%',qeps:'3,32 $',qbe:'+4%',qm:'20,1%',qi:'Q2 FY2026 - AI beschleunigt.',ar1:'~18 Mrd. $ FY26',ar2:'~21 Mrd. $ FY27',ae1:'~19 $ FY26',ae2:'~22 $ FY27',guid:'FY2026: 17,7-18 Mrd. $.',rat:'Buy',tgt:'720$',ac:28},
+{t:'HUBS',n:'HubSpot',s:'Marketing / CRM SaaS',cat:'Software',sc:7,bw:5,wa:7,gs:7,qu:7,pe:85,ps:12.5,gm:85,rg:16,om:10,de:0.15,fcf:0.8,kurs:620,s1:558,s2:495,w1:685,w2:755,ez:'540-595$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 545-590$ attraktiv.',p1:'685-740$',p3:'840-980$',up1:'+14%',up3:'+42%',sent:'Neutral-Bullisch',sig:'🟡 Neutral',trend:'Konsolidierung.',sum:'SMB CRM-Leader. 85% Marge. Breeze AI integriert.',bw_t:'KGV 85 für 85% Marge vertretbar.',wa_t:'16% Wachstum.',gs_t:'FCF positiv.',qu_t:'Breeze AI differenziert.',st:['85% Bruttomarge','Breeze AI','SMB-Leader'],ri:['Salesforce','KGV 85','Verlangsamung'],qrev:'703 Mio. $',qbr:'+2%',qeps:'2,27 $',qbe:'+5%',qm:'10,3%',qi:'Q1 2026 - Multi-Hub +22%.',ar1:'~3 Mrd. $ 2026',ar2:'~3,6 Mrd. $ 2027',ae1:'~9,50 $ 2026',ae2:'~12 $ 2027',guid:'~3 Mrd. $ 2026.',rat:'Buy',tgt:'680$',ac:28},
+{t:'SHOP',n:'Shopify',s:'E-Commerce Platform',cat:'Software',sc:7,bw:5,wa:8,gs:7,qu:8,pe:80,ps:14,gm:59,rg:27,om:18,de:0.12,fcf:2.1,kurs:118,s1:98,s2:82,w1:138,w2:160,ez:'92-108$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 95-108$ attraktiv.',p1:'138-155$',p3:'180-230$',up1:'+24%',up3:'+70%',sent:'Bullisch',sig:'🟢 Leicht Bullisch',trend:'Aufwärtstrend. Konsolidierung.',sum:'10% US-E-Commerce. 27% Wachstum.',bw_t:'KGV 80 bei 25%+ Wachstum.',wa_t:'Merchant Solutions schneller.',gs_t:'FCF 2,1 Mrd. $.',qu_t:'Tobi Lütke Gründer-CEO.',st:['10% US-E-Commerce','Merchant Solutions','Kaum Schulden'],ri:['KGV 80','Amazon','Makro'],qrev:'2,36 Mrd. $',qbr:'+3%',qeps:'0,39 $',qbe:'+15%',qm:'17,8%',qi:'Q1 2026 - Merchant +31%.',ar1:'~10,5 Mrd. $ 2026',ar2:'~13 Mrd. $ 2027',ae1:'~1,60 $ 2026',ae2:'~2,20 $ 2027',guid:'~27% Wachstum.',rat:'Buy',tgt:'150$',ac:36},
+{t:'DDOG',n:'Datadog',s:'Cloud Monitoring / AI Observability',cat:'Software',sc:7,bw:5,wa:8,gs:8,qu:8,pe:null,ps:18,gm:81,rg:25,om:12,de:0.1,fcf:1.2,kurs:138,s1:118,s2:98,w1:158,w2:180,ez:'112-130$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 115-128$ attraktiv.',p1:'158-175$',p3:'200-250$',up1:'+18%',up3:'+60%',sent:'Bullisch',sig:'🟢 Leicht Bullisch',trend:'Erholung von Tief. KI-Observability wächst.',sum:'Cloud-Monitoring Standard. 81% Marge. KI-Workloads treiben.',bw_t:'KUV 18 für 81% Marge fair.',wa_t:'25% Wachstum. KI-Kunden steigen.',gs_t:'FCF 1,2 Mrd. $.',qu_t:'Olivier Pomel solid.',st:['81% Bruttomarge','Cloud-Standard','KI-Workloads'],ri:['Splunk/New Relic','Hoch','Profitabilität gering'],qrev:'761 Mio. $',qbr:'+4%',qeps:'0,46 $',qbe:'+8%',qm:'12,1%',qi:'Q1 2026 - KI-Kunden +35%.',ar1:'~3,2 Mrd. $ 2026',ar2:'~4 Mrd. $ 2027',ae1:'~1,80 $ 2026',ae2:'~2,50 $ 2027',guid:'Q2: 762-766 Mio. $.',rat:'Buy',tgt:'165$',ac:35},
+{t:'AMD',n:'AMD',s:'AI Chips / Data Center',cat:'Semis',sc:7,bw:5,wa:8,gs:8,qu:7,pe:100,ps:8.5,gm:53,rg:36,om:12,de:0.06,fcf:3.5,kurs:112,s1:95,s2:78,w1:135,w2:160,ez:'90-105$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 90-100$ idealer Einstieg.',p1:'135-155$',p3:'180-250$',up1:'+28%',up3:'+90%',sent:'Bullisch',sig:'🟢 Leicht Bullisch',trend:'Erholung von Tief. Aufwärtstrend baut.',sum:'Einziger ernsthafter NVIDIA-Konkurrent. 36% Wachstum.',bw_t:'KGV 100 bei 36% vertretbar.',wa_t:'Data Center +57%.',gs_t:'D/E 0.06. FCF 3,5 Mrd. $.',qu_t:'Lisa Su beste Halbleiter-CEO.',st:['Einziger NVIDIA-Konkurrent','Lisa Su','Data Center explodiert'],ri:['CUDA schwer','Gaming schwächelt','Marge unter NVIDIA'],qrev:'7,44 Mrd. $',qbr:'+3%',qeps:'0,96 $',qbe:'+6%',qm:'53,7%',qi:'Q1 2026 - Data Center +57%.',ar1:'~33 Mrd. $ 2026',ar2:'~40 Mrd. $ 2027',ae1:'~4,50 $ 2026',ae2:'~6,20 $ 2027',guid:'Q2: ~7,7 Mrd. $.',rat:'Strong Buy',tgt:'155$',ac:40},
+{t:'ASML',n:'ASML',s:'EUV Semiconductor Equipment',cat:'Semis',sc:9,bw:8,wa:8,gs:9,qu:10,pe:35,ps:11,gm:51,rg:15,om:32,de:0.12,fcf:5.5,kurs:745,s1:660,s2:575,w1:820,w2:910,ez:'645-720$',ef:'#f5c518',eb:'Fair',ez_t:'EUV Monopol = unangreifbar. Rücksetzer 655-715$ attraktiv.',p1:'820-900$',p3:'1050-1250$',up1:'+14%',up3:'+55%',sent:'Sehr Bullisch',sig:'🟢 Bullisch',trend:'Mega-Aufwärtstrend. EUV bestätigt.',sum:'Absolutes Monopol auf EUV. Ohne ASML keine modernen Chips.',bw_t:'KGV 35 für EUV-Monopol günstig.',wa_t:'High-NA EUV beschleunigt.',gs_t:'D/E 0.12. FCF 5,5 Mrd. $.',qu_t:'Unangreifbares Monopol.',st:['EUV Monopol','KI treibt Chipnachfrage','Kein Konkurrent'],ri:['China-Export','Langer Zyklus','Geopolitik'],qrev:'7,74 Mrd. €',qbr:'+5%',qeps:'6,33 €',qbe:'+8%',qm:'54,7%',qi:'Q1 2026 - High-NA EUV geliefert.',ar1:'~35 Mrd. € 2026',ar2:'~44 Mrd. € 2027',ae1:'~30 € 2026',ae2:'~40 € 2027',guid:'2026: 30-35 Mrd. €.',rat:'Strong Buy',tgt:'900$',ac:28},
+{t:'TSM',n:'TSMC',s:'Semiconductor Foundry',cat:'Semis',sc:9,bw:8,wa:9,gs:9,qu:9,pe:22,ps:10,gm:58,rg:35,om:46,de:0.25,fcf:18,kurs:195,s1:172,s2:148,w1:218,w2:245,ez:'165-185$',ef:'#00e5a0',eb:'Günstig',ez_t:'KGV 22 bei 35% Wachstum fundamental günstig.',p1:'218-240$',p3:'280-340$',up1:'+18%',up3:'+55%',sent:'Sehr Bullisch',sig:'🟢 Stark Bullisch',trend:'Starker Aufwärtstrend. KI explodiert.',sum:'Weltbeste Chip-Fabrik. KGV 22 bei 35% günstig.',bw_t:'KGV 22 bei 35% und 46% Margin sehr günstig.',wa_t:'N2/N3 führend.',gs_t:'D/E 0.25. FCF 18 Mrd. $.',qu_t:'Technologisch 2 Jahre vorn.',st:['Niemand kann ersetzen','KGV 22 günstig','N2 führend'],ri:['Taiwan-Geopolitik','Intel','Capex hoch'],qrev:'839 Mrd. TWD',qbr:'+6%',qeps:'13,94 TWD',qbe:'+8%',qm:'58,8%',qi:'Q1 2026 - Rekord.',ar1:'~3700 Mrd. TWD 2026',ar2:'~4500 Mrd. TWD 2027',ae1:'~60 TWD 2026',ae2:'~78 TWD 2027',guid:'+25-30% USD 2026.',rat:'Strong Buy',tgt:'235$',ac:32},
+{t:'AVGO',n:'Broadcom',s:'Semiconductors / AI Custom Chips',cat:'Semis',sc:8,bw:7,wa:8,gs:7,qu:8,pe:38,ps:12,gm:64,rg:22,om:35,de:2.5,fcf:20,kurs:245,s1:215,s2:185,w1:275,w2:310,ez:'210-238$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 215-235$ ideal.',p1:'275-305$',p3:'360-430$',up1:'+18%',up3:'+55%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Starker Aufwärtstrend. Custom AI Chips.',sum:'Custom AI Chips für Google, Meta, Apple. 22% Wachstum.',bw_t:'KGV 38 für Custom AI fair.',wa_t:'AI Revenue explodiert.',gs_t:'FCF 20 Mrd. $.',qu_t:'Hock Tan M&A-Genie.',st:['Custom AI Chips','FCF 20 Mrd. $','VMware Integration'],ri:['Hohe Schulden','Kundenkonzentration','NVIDIA'],qrev:'14,92 Mrd. $',qbr:'+5%',qeps:'1,60 $',qbe:'+8%',qm:'35,2%',qi:'Q1 FY2025 - AI +220%.',ar1:'~62 Mrd. $ FY26',ar2:'~70 Mrd. $ FY27',ae1:'~6,50 $ FY26',ae2:'~7,80 $ FY27',guid:'AI Revenue weiter explosiv.',rat:'Strong Buy',tgt:'280$',ac:35},
+{t:'QCOM',n:'Qualcomm',s:'Mobile Chips / AI on Device',cat:'Semis',sc:7,bw:7,wa:7,gs:7,qu:7,pe:15.5,ps:4.2,gm:56,rg:17,om:28,de:0.45,fcf:9.5,kurs:165,s1:148,s2:128,w1:185,w2:210,ez:'142-158$',ef:'#f5c518',eb:'Fair',ez_t:'KGV 15 günstig. Rücksetzer attraktiv.',p1:'185-205$',p3:'230-280$',up1:'+16%',up3:'+50%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Aufwärtstrend. On-Device AI als Treiber.',sum:'Smartphone-Chips dominant. On-Device AI als nächster Treiber.',bw_t:'KGV 15 günstig.',wa_t:'17% Wachstum. AI-PC.',gs_t:'FCF 9,5 Mrd. $.',qu_t:'Cristiano Amon. AI-PC Wachstum.',st:['KGV 15 günstig','Snapdragon dominiert','AI-PC wächst'],ri:['Apple eigene Chips','MediaTek','China'],qrev:'10,84 Mrd. $',qbr:'+4%',qeps:'2,85 $',qbe:'+7%',qm:'56,4%',qi:'Q2 FY2025 - Automotive +59%.',ar1:'~42 Mrd. $ FY26',ar2:'~46 Mrd. $ FY27',ae1:'~11 $ FY26',ae2:'~12,50 $ FY27',guid:'FY2026 stark. Automotive neu.',rat:'Buy',tgt:'200$',ac:30},
+{t:'ARM',n:'ARM Holdings',s:'Chip Architecture / IP / Royalties',cat:'Semis',sc:7,bw:5,wa:8,gs:9,qu:9,pe:95,ps:35,gm:97,rg:34,om:45,de:0,fcf:1.8,kurs:168,s1:145,s2:122,w1:192,w2:220,ez:'138-158$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 142-158$ ideal.',p1:'192-215$',p3:'260-320$',up1:'+20%',up3:'+65%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Starker Aufwärtstrend. AI-Royalty.',sum:'97% Bruttomarge. Jeder Chip zahlt ARM Lizenzgebühren.',bw_t:'KGV 95 für 97% Marge fair.',wa_t:'34% Wachstum. Royalties steigen.',gs_t:'Schuldenfrei.',qu_t:'Jeder Chip zahlt Lizenz.',st:['97% Bruttomarge','Jeder Chip zahlt','Schuldenfrei'],ri:['KGV 95','RISC-V','Softbank'],qrev:'1,24 Mrd. $',qbr:'+5%',qeps:'0,55 $',qbe:'+10%',qm:'45,2%',qi:'Q3 FY2025 - Royalty +37%.',ar1:'~5,4 Mrd. $ FY26',ar2:'~6,8 Mrd. $ FY27',ae1:'~2,50 $ FY26',ae2:'~3,20 $ FY27',guid:'FY2026: 5-5,3 Mrd. $.',rat:'Buy',tgt:'200$',ac:22},
+{t:'FTNT',n:'Fortinet',s:'Cybersecurity / SASE',cat:'Security',sc:8,bw:7,wa:7,gs:8,qu:8,pe:45,ps:10.5,gm:80,rg:20,om:31,de:0.5,fcf:2.2,kurs:98,s1:85,s2:70,w1:115,w2:135,ez:'82-95$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 85-90$ idealer Einstieg.',p1:'115-130$',p3:'160-200$',up1:'+22%',up3:'+75%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Konsolidierung nach Q1. Aufwärtstrend intakt.',sum:'Stärkster Cybersecurity-Wert. Rein organisch, 80% Marge.',bw_t:'KGV 45 für 20% Wachstum und 31% Margin fair.',wa_t:'Billings +31%. SASE+SecOps >30%.',gs_t:'FCF 2,2 Mrd. $.',qu_t:'Gründer Ken Xie. Einziger organischer Innovator.',st:['Rein organisches Wachstum','80% Bruttomarge','SASE+SecOps'],ri:['Palo Alto','Hardware-Zyklus','Bewertung'],qrev:'1,54 Mrd. $',qbr:'+3%',qeps:'0,63 $',qbe:'+11%',qm:'31,4%',qi:'Q1 2026 - Alle übertroffen.',ar1:'~6,5 Mrd. $ 2026',ar2:'~7,8 Mrd. $ 2027',ae1:'~2,60 $ 2026',ae2:'~3,10 $ 2027',guid:'FY2026: 6,45-6,55 Mrd. $.',rat:'Strong Buy',tgt:'130$',ac:38},
+{t:'PANW',n:'Palo Alto Networks',s:'Cybersecurity Platform',cat:'Security',sc:8,bw:6,wa:7,gs:8,qu:8,pe:55,ps:14,gm:74,rg:14,om:21,de:0.35,fcf:3.8,kurs:215,s1:188,s2:162,w1:242,w2:270,ez:'182-205$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 185-205$ attraktiv.',p1:'242-265$',p3:'310-380$',up1:'+18%',up3:'+55%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend. Platformization.',sum:'Größte Cybersecurity-Plattform. Platformization bindet ein.',bw_t:'KGV 55 für 74% Marge fair.',wa_t:'Platformization beschleunigt.',gs_t:'FCF 3,8 Mrd. $.',qu_t:'Nikesh Arora hervorragend.',st:['Größte Cyber-Plattform','74% Marge','Platformization-Moat'],ri:['Fortinet','Verlangsamung','Hoch'],qrev:'2,26 Mrd. $',qbr:'+3%',qeps:'1,31 $',qbe:'+7%',qm:'21,4%',qi:'Q3 FY2025 - Platformization +40%.',ar1:'~9,2 Mrd. $ FY26',ar2:'~10,8 Mrd. $ FY27',ae1:'~5,80 $ FY26',ae2:'~7 $ FY27',guid:'RPO ~20%.',rat:'Buy',tgt:'255$',ac:40},
+{t:'CRWD',n:'CrowdStrike',s:'AI-Native Cybersecurity',cat:'Security',sc:7,bw:5,wa:8,gs:7,qu:8,pe:90,ps:22,gm:75,rg:25,om:18,de:0.28,fcf:1.5,kurs:428,s1:375,s2:320,w1:480,w2:540,ez:'360-405$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 370-405$ ideal.',p1:'480-520$',p3:'600-750$',up1:'+17%',up3:'+50%',sent:'Bullisch',sig:'🟢 Leicht Bullisch',trend:'Erholung nach Outage. Aufwärtstrend neu.',sum:'KI-native Cybersecurity. 25% Wachstum nach Outage erholt.',bw_t:'KGV 90 für 25% Wachstum vertretbar.',wa_t:'Charlotte AI differenziert.',gs_t:'FCF steigend.',qu_t:'George Kurtz solid.',st:['Charlotte AI','25% Wachstum','Starker ARR'],ri:['Outage-Reputation','KGV 90','Palo Alto'],qrev:'1,1 Mrd. $',qbr:'+4%',qeps:'0,93 $',qbe:'+10%',qm:'18,2%',qi:'Q4 FY2025 - Vollständige Erholung.',ar1:'~4,7 Mrd. $ FY26',ar2:'~5,8 Mrd. $ FY27',ae1:'~4,10 $ FY26',ae2:'~5,50 $ FY27',guid:'ARR ~23%.',rat:'Buy',tgt:'490$',ac:35},
+{t:'ZS',n:'Zscaler',s:'Zero Trust Security',cat:'Security',sc:7,bw:5,wa:7,gs:7,qu:8,pe:null,ps:18,gm:78,rg:21,om:8,de:0.38,fcf:0.9,kurs:248,s1:215,s2:182,w1:278,w2:315,ez:'208-238$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 212-238$ ideal.',p1:'278-310$',p3:'360-440$',up1:'+18%',up3:'+55%',sent:'Bullisch',sig:'🟢 Leicht Bullisch',trend:'Erholung. Zero Trust bestätigt.',sum:'Zero Trust Standard. 21% Wachstum, 78% Marge.',bw_t:'KUV 18 für 78% Marge fair.',wa_t:'Zero Trust Adoption steigt.',gs_t:'FCF positiv.',qu_t:'Zero Trust als Paradigma.',st:['Zero Trust Leader','78% Marge','21% Wachstum'],ri:['Palo Alto','Bewertung','Profitabilität'],qrev:'678 Mio. $',qbr:'+3%',qeps:'0,85 $',qbe:'+6%',qm:'8,2%',qi:'Q2 FY2025 - CRRR +23%.',ar1:'~3 Mrd. $ FY26',ar2:'~3,7 Mrd. $ FY27',ae1:'~3,50 $ FY26',ae2:'~4,80 $ FY27',guid:'FY2026: 2,94-2,96 Mrd. $.',rat:'Buy',tgt:'285$',ac:30},
+{t:'ANET',n:'Arista Networks',s:'Cloud Networking / AI Infrastructure',cat:'Hardware',sc:8,bw:7,wa:7,gs:9,qu:9,pe:47,ps:16,gm:64,rg:20,om:40,de:0,fcf:3.2,kurs:95,s1:82,s2:68,w1:110,w2:130,ez:'80-92$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 82-88$ idealer Einstieg.',p1:'110-125$',p3:'150-200$',up1:'+22%',up3:'+80%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Gesunder Aufwärtstrend. KI-RZ hoch.',sum:'KI-Infrastruktur-Held. 40% OM + schuldenfrei.',bw_t:'KGV 47 für 40% Margin fair.',wa_t:'Meta, Microsoft, Amazon als Kunden.',gs_t:'Schuldenfrei, FCF 3,2 Mrd. $.',qu_t:'Jayshree Ullal außergewöhnlich.',st:['KI-RZ-Boom direkt','40% OM','Schuldenfrei'],ri:['Cisco','Kundenkonzentration','Hyperscaler'],qrev:'1,93 Mrd. $',qbr:'+4%',qeps:'2,10 $',qbe:'+8%',qm:'41,2%',qi:'Q1 2026 - KI hoch.',ar1:'~8,2 Mrd. $ 2026',ar2:'~9,8 Mrd. $ 2027',ae1:'~8,60 $ 2026',ae2:'~10,20 $ 2027',guid:'Stark. KI-RZ ATH.',rat:'Strong Buy',tgt:'125$',ac:30},
+{t:'V',n:'Visa',s:'Digital Payments / Global Network',cat:'Fintech',sc:9,bw:8,wa:7,gs:8,qu:9,pe:30,ps:16.5,gm:80.3,rg:10,om:67,de:1.05,fcf:19,kurs:358,s1:320,s2:285,w1:390,w2:420,ez:'310-345$',ef:'#f5c518',eb:'Fair',ez_t:'Quality-Compounder. Rücksetzer 320-345$ ideal.',p1:'390-415$',p3:'470-540$',up1:'+12%',up3:'+35%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Langfrist-Aufwärtstrend.',sum:'Perfektes Tollgate-Modell. 67% OM. Jede Zahlung nutzt Visa.',bw_t:'KGV 30 für 67% Margin fair.',wa_t:'Cross-Border +13%.',gs_t:'FCF 19 Mrd. $.',qu_t:'Netzwerk unlösbar.',st:['67% Operating Margin','Globales Netzwerk','Niedrige Kapitalintensität'],ri:['EU/USA Regulierung','Krypto','Niedrigeres Wachstum'],qrev:'9,6 Mrd. $',qbr:'+2%',qeps:'2,76 $',qbe:'+4%',qm:'67,1%',qi:'Q2 FY2026 - Cross-Border +13%.',ar1:'~39 Mrd. $ FY26',ar2:'~43 Mrd. $ FY27',ae1:'~11,30 $ FY26',ae2:'~13 $ FY27',guid:'Stabil. Cross-Border + Tap-to-Pay.',rat:'Buy',tgt:'395$',ac:40},
+{t:'MA',n:'Mastercard',s:'Digital Payments / Services',cat:'Fintech',sc:8,bw:7,wa:7,gs:7,qu:9,pe:38,ps:18,gm:78,rg:14,om:57,de:1.85,fcf:12.5,kurs:595,s1:540,s2:480,w1:645,w2:700,ez:'525-570$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 530-565$ attraktiv.',p1:'645-695$',p3:'780-890$',up1:'+12%',up3:'+38%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend.',sum:'Mastercard wächst schneller als Visa dank Services.',bw_t:'KGV 38 für 57% Margin fair.',wa_t:'14% Wachstum. Services schneller.',gs_t:'FCF 12,5 Mrd. $.',qu_t:'International-Expansion stark.',st:['Services schneller','International-Expansion','57% OM'],ri:['Regulierung','Visa','Schulden'],qrev:'7,25 Mrd. $',qbr:'+3%',qeps:'3,73 $',qbe:'+5%',qm:'57,2%',qi:'Q1 2026 - Volumes +9%.',ar1:'~30 Mrd. $ 2026',ar2:'~34 Mrd. $ 2027',ae1:'~15,80 $ 2026',ae2:'~18,50 $ 2027',guid:'Services als schnellstes Segment.',rat:'Buy',tgt:'665$',ac:35},
+{t:'JPM',n:'JPMorgan Chase',s:'Universal Banking / AI',cat:'Finance',sc:8,bw:8,wa:6,gs:7,qu:8,pe:12.5,ps:3.8,gm:60,rg:9,om:35,de:1.2,fcf:28,kurs:278,s1:248,s2:218,w1:305,w2:335,ez:'242-265$',ef:'#00e5a0',eb:'Günstig',ez_t:'KGV 12 fundamental günstig. 245-265$ ideal.',p1:'305-330$',p3:'360-420$',up1:'+13%',up3:'+35%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend.',sum:'Weltbeste Bank. Jamie Dimon bester CEO. KGV 12 günstig.',bw_t:'KGV 12 historisch günstig.',wa_t:'9% Wachstum. IB +12%.',gs_t:'FCF 28 Mrd. $.',qu_t:'Jamie Dimon absolut bester Bank-CEO.',st:['Weltbeste Bank','KI führend','Dividende + Buybacks'],ri:['Zinssenkungen','Regulierung','Kreditausfälle'],qrev:'45,3 Mrd. $',qbr:'+3%',qeps:'5,07 $',qbe:'+8%',qm:'35,1%',qi:'Q1 2026 - IB +12%.',ar1:'~185 Mrd. $ 2026',ar2:'~195 Mrd. $ 2027',ae1:'~18,50 $ 2026',ae2:'~20 $ 2027',guid:'Stabil. IB kompensiert NII.',rat:'Buy',tgt:'310$',ac:28},
+{t:'GS',n:'Goldman Sachs',s:'Investment Banking / Asset Management',cat:'Finance',sc:7,bw:7,wa:6,gs:7,qu:8,pe:14,ps:3.2,gm:58,rg:8,om:28,de:2.8,fcf:12,kurs:598,s1:542,s2:485,w1:648,w2:705,ez:'528-572$',ef:'#f5c518',eb:'Fair',ez_t:'KGV 14 günstig für Goldman.',p1:'648-695$',p3:'750-840$',up1:'+12%',up3:'+30%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Aufwärtstrend. IB-Renaissance.',sum:'Weltbeste Investmentbank. IB-Comeback. KGV 14 günstig.',bw_t:'KGV 14 günstig.',wa_t:'IB-Rebound treibt.',gs_t:'FCF 12 Mrd. $.',qu_t:'David Solomon solid.',st:['Weltbeste IB','IB-Renaissance','Asset Management'],ri:['Zyklisch','Konsumentenbank teuer','Regulierung'],qrev:'15,1 Mrd. $',qbr:'+5%',qeps:'14,12 $',qbe:'+15%',qm:'28,3%',qi:'Q1 2026 - IB +36%.',ar1:'~58 Mrd. $ 2026',ar2:'~62 Mrd. $ 2027',ae1:'~45 $ 2026',ae2:'~50 $ 2027',guid:'IB-Volumen hoch. M&A-Boom.',rat:'Buy',tgt:'645$',ac:20},
+{t:'BRK.B',n:'Berkshire Hathaway',s:'Conglomerate / Insurance / Value',cat:'Finance',sc:8,bw:8,wa:5,gs:9,qu:9,pe:22,ps:2.5,gm:30,rg:5,om:15,de:0.3,fcf:35,kurs:532,s1:480,s2:425,w1:575,w2:620,ez:'465-510$',ef:'#f5c518',eb:'Fair',ez_t:'Jeder Kauf ist fairer Einstieg.',p1:'575-610$',p3:'650-720$',up1:'+10%',up3:'+28%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Langfrist-Aufwärtstrend.',sum:'Buffetts Meisterwerk. 300+ Mrd. Cash. GEICO + BNSF.',bw_t:'KGV 22 für Qualität günstig.',wa_t:'5% stabil.',gs_t:'300 Mrd. $ Cash.',qu_t:'Buffett + Greg Abel.',st:['300 Mrd. $ Cash','Diversifiziert','Buffett-Qualität'],ri:['Nachfolge','Niedriges Wachstum','Keine Dividende'],qrev:'89,7 Mrd. $',qbr:'+2%',qeps:'5,83 $',qbe:'+3%',qm:'15,2%',qi:'Q1 2026 - Operating +14%.',ar1:'~365 Mrd. $ 2026',ar2:'~382 Mrd. $ 2027',ae1:'~22 $ 2026',ae2:'~24 $ 2027',guid:'Cash für richtige Gelegenheiten.',rat:'Buy',tgt:'570$',ac:10},
+{t:'SPGI',n:'S&P Global',s:'Ratings / Data / Analytics',cat:'Finance',sc:8,bw:7,wa:7,gs:8,qu:9,pe:46,ps:12,gm:70,rg:14,om:42,de:0.65,fcf:5,kurs:545,s1:490,s2:435,w1:600,w2:650,ez:'475-520$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 480-515$ attraktiv.',p1:'600-640$',p3:'720-820$',up1:'+12%',up3:'+38%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend.',sum:'Quasi-Monopol Finanzratings. 42% OM.',bw_t:'KGV 46 für Monopol fair.',wa_t:'14% Wachstum.',gs_t:'FCF 5 Mrd. $.',qu_t:'Rating-Monopol unlösbar.',st:['Rating-Monopol','42% OM','Recurring Revenue'],ri:['Regulierung','Zinszyklus','Moody's'],qrev:'3,77 Mrd. $',qbr:'+2%',qeps:'4,37 $',qbe:'+5%',qm:'42,3%',qi:'Q1 2026 - Ratings +14%.',ar1:'~16 Mrd. $ 2026',ar2:'~18 Mrd. $ 2027',ae1:'~19 $ 2026',ae2:'~22 $ 2027',guid:'Stabil.',rat:'Buy',tgt:'610$',ac:22},
+{t:'LLY',n:'Eli Lilly',s:'Pharma / GLP-1 / AI Drug',cat:'Healthcare',sc:8,bw:6,wa:9,gs:7,qu:9,pe:52,ps:18.5,gm:79,rg:45,om:28,de:0.85,fcf:8.5,kurs:830,s1:730,s2:630,w1:930,w2:1050,ez:'720-810$',ef:'#f5c518',eb:'Fair',ez_t:'GLP-1 Boom trägt. Rücksetzer 730-810$ attraktiv.',p1:'930-1020$',p3:'1200-1500$',up1:'+14%',up3:'+55%',sent:'Sehr Bullisch',sig:'🟢 Bullisch',trend:'Starker Aufwärtstrend durch GLP-1.',sum:'Mounjaro + Zepbound revolutionieren Adipositas. 45% Wachstum.',bw_t:'KGV 52 für 45% fair.',wa_t:'Mounjaro + Zepbound explodieren.',gs_t:'FCF 8,5 Mrd. $.',qu_t:'GLP-1 + Alzheimer + AI Drug.',st:['Mounjaro/Zepbound','45% Wachstum','Stärkste Pipeline'],ri:['Novo Nordisk','Medicare','Patentablauf'],qrev:'12,7 Mrd. $',qbr:'+8%',qeps:'3,34 $',qbe:'+12%',qm:'28,4%',qi:'Q1 2026 - Mounjaro +113%.',ar1:'~58 Mrd. $ 2026',ar2:'~72 Mrd. $ 2027',ae1:'~20 $ 2026',ae2:'~26 $ 2027',guid:'2026: 58-61 Mrd. $.',rat:'Strong Buy',tgt:'1050$',ac:35},
+{t:'NVO',n:'Novo Nordisk',s:'Pharma / GLP-1 / Diabetes',cat:'Healthcare',sc:8,bw:7,wa:8,gs:8,qu:8,pe:22,ps:8.5,gm:84,rg:22,om:42,de:0.35,fcf:12,kurs:78,s1:68,s2:58,w1:90,w2:105,ez:'65-75$',ef:'#f5c518',eb:'Fair',ez_t:'GLP-1 Marktführer. Rücksetzer 68-74$ attraktiv.',p1:'90-100$',p3:'115-135$',up1:'+20%',up3:'+55%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Aufwärtstrend. GLP-1 bestätigt.',sum:'GLP-1 Marktführer Ozempic + Wegovy. 22% Wachstum.',bw_t:'KGV 22 für 22% und 42% Margin günstig.',wa_t:'Ozempic + Wegovy explodieren.',gs_t:'FCF 12 Mrd. $.',qu_t:'Lars Fruergaard Jørgensen solid.',st:['GLP-1 Marktführer','84% Marge','FCF 12 Mrd. $'],ri:['Eli Lilly','Produktionsengpässe','Medicare'],qrev:'78,1 Mrd. DKK',qbr:'+4%',qeps:'10,08 DKK',qbe:'+6%',qm:'42,3%',qi:'Q1 2026 - Wegovy +83%.',ar1:'~340 Mrd. DKK 2026',ar2:'~400 Mrd. DKK 2027',ae1:'~46 DKK 2026',ae2:'~56 DKK 2027',guid:'+20% 2026.',rat:'Strong Buy',tgt:'95$',ac:30},
+{t:'ISRG',n:'Intuitive Surgical',s:'Robotic Surgery / da Vinci',cat:'Healthcare',sc:8,bw:6,wa:7,gs:9,qu:9,pe:70,ps:20,gm:68,rg:18,om:29,de:0,fcf:2.8,kurs:528,s1:465,s2:402,w1:585,w2:645,ez:'455-505$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 460-500$ ideal.',p1:'585-635$',p3:'720-850$',up1:'+14%',up3:'+45%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Langfristiger Aufwärtstrend.',sum:'Da Vinci Standard. Schuldenfrei + Razor-Razorblade.',bw_t:'KGV 70 für Monopol fair.',wa_t:'Da Vinci 5 treibt Upgrades.',gs_t:'Schuldenfrei. FCF 2,8 Mrd. $.',qu_t:'Da Vinci Monopol.',st:['Da Vinci Monopol','Schuldenfrei','Razor-Razorblade'],ri:['Medtronic/J&J','Hohe Bewertung','Krankenhausbudgets'],qrev:'2,25 Mrd. $',qbr:'+4%',qeps:'2,25 $',qbe:'+6%',qm:'29,3%',qi:'Q1 2026 - Prozeduren +18%.',ar1:'~9,5 Mrd. $ 2026',ar2:'~11,2 Mrd. $ 2027',ae1:'~9,80 $ 2026',ae2:'~11,50 $ 2027',guid:'17-19% Prozedurenswachstum.',rat:'Buy',tgt:'610$',ac:25},
+{t:'ABBV',n:'AbbVie',s:'Pharma / Immunology',cat:'Healthcare',sc:7,bw:7,wa:7,gs:6,qu:7,pe:22,ps:5.5,gm:70,rg:6,om:28,de:2.2,fcf:16,kurs:188,s1:168,s2:148,w1:210,w2:232,ez:'162-182$',ef:'#f5c518',eb:'Fair',ez_t:'Hohe Dividende + fair. Rücksetzer attraktiv.',p1:'210-228$',p3:'245-280$',up1:'+14%',up3:'+38%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend. Dividenden-King.',sum:'Skyrizi+Rinvoq kompensieren Humira. ~3,5% Dividende.',bw_t:'KGV 22 mit Dividende fair.',wa_t:'Skyrizi+Rinvoq kompensieren.',gs_t:'FCF 16 Mrd. $.',qu_t:'Richard Gonzalez solid.',st:['Skyrizi+Rinvoq Wachstum','~3,5% Dividende','FCF 16 Mrd. $'],ri:['Hohe Schulden','Botox','Pipeline'],qrev:'13,3 Mrd. $',qbr:'+3%',qeps:'2,46 $',qbe:'+4%',qm:'28,1%',qi:'Q1 2026 - Skyrizi +52%.',ar1:'~58 Mrd. $ 2026',ar2:'~62 Mrd. $ 2027',ae1:'~11 $ 2026',ae2:'~12,50 $ 2027',guid:'2026: 58-59 Mrd. $.',rat:'Buy',tgt:'215$',ac:25},
+{t:'UNH',n:'UnitedHealth',s:'Health Insurance / Optum',cat:'Healthcare',sc:7,bw:7,wa:6,gs:7,qu:7,pe:18,ps:1.1,gm:24,rg:8,om:7,de:0.65,fcf:18,kurs:295,s1:260,s2:228,w1:330,w2:368,ez:'255-285$',ef:'#f5c518',eb:'Fair',ez_t:'Nach CEO-Nachfolge günstig. KGV 18.',p1:'330-360$',p3:'400-460$',up1:'+18%',up3:'+45%',sent:'Neutral-Bullisch',sig:'🟡 Neutral',trend:'Volatile Phase nach CEO-Wechsel.',sum:'Größte US-Krankenversicherung. Optum AI als Treiber.',bw_t:'KGV 18 günstig.',wa_t:'Optum wächst doppelt so schnell.',gs_t:'FCF 18 Mrd. $.',qu_t:'Optum als echter Moat.',st:['US-Krankenversicherung Leader','Optum AI','FCF 18 Mrd. $'],ri:['Regulierung','CEO-Ermittlungen','Medizinkosten'],qrev:'109,6 Mrd. $',qbr:'+2%',qeps:'7,20 $',qbe:'-5%',qm:'7,1%',qi:'Q1 2026 - Guidance gesenkt.',ar1:'~450 Mrd. $ 2026',ar2:'~490 Mrd. $ 2027',ae1:'~26 $ 2026',ae2:'~32 $ 2027',guid:'2026: 26-26,50 $.',rat:'Buy',tgt:'340$',ac:28},
+{t:'NFLX',n:'Netflix',s:'Streaming / Live Sports / Games',cat:'Media',sc:8,bw:7,wa:7,gs:7,qu:8,pe:34,ps:9.5,gm:43,rg:16,om:28,de:0.8,fcf:8,kurs:1220,s1:1050,s2:900,w1:1380,w2:1550,ez:'1000-1150$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 1000-1100$ attraktiv.',p1:'1380-1500$',p3:'1800-2200$',up1:'+18%',up3:'+65%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Starker Aufwärtstrend.',sum:'Werbetier + Live-Sports + Games. Explodierende Margen.',bw_t:'KGV 34 für 16% und 28% Margin fair.',wa_t:'Ad-Tier rapide. Live-Events.',gs_t:'FCF 8 Mrd. $.',qu_t:'Sarandos + Peters kompetent.',st:['280 Mio. Abonnenten','Werbetier + Live','FCF 8 Mrd. $'],ri:['Disney+/Max','Content-Kosten','Sättigung'],qrev:'10,5 Mrd. $',qbr:'+3%',qeps:'6,61 $',qbe:'+16%',qm:'28,1%',qi:'Q1 2026 - Margin besser als erwartet.',ar1:'~45 Mrd. $ 2026',ar2:'~52 Mrd. $ 2027',ae1:'~27 $ 2026',ae2:'~34 $ 2027',guid:'2026: 43,5-44,5 Mrd. $.',rat:'Buy',tgt:'1450$',ac:42},
+{t:'DIS',n:'Walt Disney',s:'Entertainment / Streaming / Parks',cat:'Media',sc:6,bw:7,wa:5,gs:6,qu:7,pe:28,ps:2.2,gm:35,rg:5,om:12,de:0.55,fcf:8,kurs:98,s1:85,s2:72,w1:112,w2:128,ez:'82-95$',ef:'#f5c518',eb:'Fair',ez_t:'Disney+ profitabel + Parks stark. KGV 28.',p1:'112-125$',p3:'135-160$',up1:'+16%',up3:'+45%',sent:'Neutral-Bullisch',sig:'🟡 Neutral',trend:'Turnaround läuft.',sum:'Disney+ profitabel. Parks wachsen. Gesamtwachstum moderat.',bw_t:'KGV 28 fair.',wa_t:'Parks +9%. Streaming profitabel.',gs_t:'FCF 8 Mrd. $.',qu_t:'Bob Iger stabilisiert.',st:['Parks stark','Disney+ profitabel','IP-Marken einzigartig'],ri:['Streaming-Wettbewerb','Iger Nachfolge','ESPN'],qrev:'23,6 Mrd. $',qbr:'+3%',qeps:'1,45 $',qbe:'+8%',qm:'12,3%',qi:'Q2 FY2025 - Parks stark.',ar1:'~98 Mrd. $ FY26',ar2:'~103 Mrd. $ FY27',ae1:'~5,40 $ FY26',ae2:'~6,20 $ FY27',guid:'EPS +16%. Parks stark.',rat:'Buy',tgt:'115$',ac:28},
+{t:'SPOT',n:'Spotify',s:'Audio Streaming / Podcasts',cat:'Media',sc:7,bw:6,wa:7,gs:7,qu:7,pe:65,ps:5.5,gm:31,rg:19,om:12,de:0.35,fcf:2.5,kurs:685,s1:605,s2:525,w1:760,w2:840,ez:'590-655$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 600-650$ ideal.',p1:'760-825$',p3:'950-1100$',up1:'+14%',up3:'+45%',sent:'Bullisch',sig:'🟢 Leicht Bullisch',trend:'Starker Aufwärtstrend.',sum:'Endlich profitabel. 268 Mio. Abonnenten.',bw_t:'KGV 65 - Profitabilisierung startet.',wa_t:'19% Wachstum.',gs_t:'FCF 2,5 Mrd. $.',qu_t:'KI-Personalisierung top.',st:['268 Mio. Abonnenten','Profitabel','KI top'],ri:['Apple Music','Lizenzen','Niedrige Marge'],qrev:'4,19 Mrd. €',qbr:'+3%',qeps:'1,81 €',qbe:'+25%',qm:'12,4%',qi:'Q1 2026 - Erste Profitabilität.',ar1:'~18,5 Mrd. € 2026',ar2:'~22 Mrd. € 2027',ae1:'~8 € 2026',ae2:'~12 € 2027',guid:'MAU +10-12%.',rat:'Buy',tgt:'750$',ac:25},
+{t:'RKLB',n:'Rocket Lab',s:'Space Launch / Systems',cat:'Aerospace',sc:6,bw:3,wa:9,gs:5,qu:8,pe:null,ps:120,gm:30,rg:46,om:-20,de:1.2,fcf:-0.2,kurs:28,s1:22,s2:16,w1:35,w2:50,ez:'18-24$',ef:'#ff4d6d',eb:'Spekulativ',ez_t:'Nur 3-5% des Portfolios. 18-24$ bessere Marge.',p1:'30-50$',p3:'50-120$',up1:'+43%',up3:'+200%',sent:'Spekulativ',sig:'🟡 Neutral',trend:'Anstieg von 5 auf 28$. Konsolidierung.',sum:'Aufregendste Space-Investment. 63% Wachstum + 2,2 Mrd. Backlog.',bw_t:'KUV ~120 - Man kauft Vision.',wa_t:'63% Wachstum.',gs_t:'2 Mrd. $ Liquidität.',qu_t:'Peter Beck - bester Space-CEO.',st:['Einzige SpaceX-Alternative','Backlog 2,2 Mrd. $','Space Force'],ri:['Unprofitabel','Neutron Timing','Extreme Bewertung'],qrev:'122 Mio. $',qbr:'+5%',qeps:'-0,11 $',qbe:'+8%',qm:'-18,2%',qi:'Q1 2026 - Space Systems +89%.',ar1:'~580 Mio. $ 2026',ar2:'~900 Mio. $ 2027',ae1:'-0,30 $ 2026',ae2:'-0,10 $ 2027',guid:'2026: 550-600 Mio. $. Neutron 2026.',rat:'Buy',tgt:'35$',ac:12},
+{t:'LMT',n:'Lockheed Martin',s:'Defense / F-35 / Missiles',cat:'Aerospace',sc:7,bw:7,wa:5,gs:7,qu:7,pe:18,ps:1.5,gm:13,rg:5,om:11,de:1.8,fcf:6.5,kurs:478,s1:432,s2:385,w1:522,w2:568,ez:'422-462$',ef:'#f5c518',eb:'Fair',ez_t:'Defensiver Qualitätswert. Rücksetzer 432-462$ ideal.',p1:'522-555$',p3:'610-680$',up1:'+12%',up3:'+32%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend. Verteidigung steigt.',sum:'Weltgrößter Rüstungskonzern. F-35 Cash-Cow. Globale Aufrüstung.',bw_t:'KGV 18 günstig.',wa_t:'Backlog >165 Mrd. $.',gs_t:'FCF 6,5 Mrd. $.',qu_t:'F-35 über Jahrzehnte.',st:['Weltgrößter Rüstungskonzern','F-35 Cash-Cow','~3% Dividende'],ri:['US-Budget-Kürzungen','F-35 Probleme','US-Abhängigkeit'],qrev:'18,0 Mrd. $',qbr:'+2%',qeps:'7,28 $',qbe:'+4%',qm:'11,1%',qi:'Q1 2026 - Aeronautics stark.',ar1:'~74 Mrd. $ 2026',ar2:'~78 Mrd. $ 2027',ae1:'~29 $ 2026',ae2:'~31 $ 2027',guid:'2026: 73,5-74,5 Mrd. $.',rat:'Buy',tgt:'540$',ac:18},
+{t:'TSLA',n:'Tesla',s:'EV / Robotaxi / Optimus',cat:'Automotive',sc:6,bw:3,wa:4,gs:7,qu:8,pe:140,ps:8.5,gm:17.9,rg:1,om:7,de:0.08,fcf:1.5,kurs:352,s1:300,s2:240,w1:400,w2:480,ez:'280-330$',ef:'#ff4d6d',eb:'Teuer',ez_t:'Nur wenn du an Robotaxi + Optimus langfristig glaubst.',p1:'380-450$',p3:'500-800$',up1:'+15%',up3:'+70%',sent:'Spekulativ Bullisch',sig:'🟡 Neutral',trend:'Sehr volatil. Elon-News dominiert.',sum:'Tesla = Robotaxi + Optimus + Energie. Bewertung auf Hoffnung.',bw_t:'KGV 140 für 1% Wachstum extrem.',wa_t:'1% Wachstum enttäuscht.',gs_t:'D/E 0.08 solide.',qu_t:'Elon Musk: visionär aber ablenkend.',st:['Robotaxi Vision','Optimus','Energie wächst'],ri:['KGV 140','Marge kollabiert','Elon-Ablenkung'],qrev:'21,3 Mrd. $',qbr:'-3%',qeps:'0,27 $',qbe:'-10%',qm:'7,4%',qi:'Q1 2026 - Enttäuschend.',ar1:'~96 Mrd. $ 2026',ar2:'~115 Mrd. $ 2027',ae1:'~1,80 $ 2026',ae2:'~3,20 $ 2027',guid:'Robotaxi Juni 2026. Optimus.',rat:'Hold',tgt:'310$',ac:38},
+{t:'COST',n:'Costco',s:'Wholesale Retail / Membership',cat:'Retail',sc:8,bw:6,wa:6,gs:8,qu:9,pe:55,ps:1.6,gm:13,rg:9,om:3.5,de:0.28,fcf:7.5,kurs:1025,s1:920,s2:815,w1:1110,w2:1200,ez:'900-985$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 910-975$ attraktiv.',p1:'1110-1180$',p3:'1300-1500$',up1:'+10%',up3:'+30%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Langfristiger Aufwärtstrend.',sum:'97% Renewal Rate. Mitgliedsbeiträge = fast reiner Gewinn.',bw_t:'KGV 55 Moat gerechtfertigt.',wa_t:'9% stabil. International.',gs_t:'FCF 7,5 Mrd. $.',qu_t:'97% Renewal Rate.',st:['97% Renewal','Mitgliedsbeitrag = Gewinn','Deflation zieht'],ri:['KGV 55','Amazon','Niedrige Margen'],qrev:'63,7 Mrd. $',qbr:'+2%',qeps:'4,02 $',qbe:'+5%',qm:'3,4%',qi:'Q2 FY2026 - Stabil.',ar1:'~270 Mrd. $ FY26',ar2:'~295 Mrd. $ FY27',ae1:'~17 $ FY26',ae2:'~19,50 $ FY27',guid:'Stabil. International.',rat:'Buy',tgt:'1100$',ac:30},
+{t:'WMT',n:'Walmart',s:'Retail / eCommerce / Advertising',cat:'Retail',sc:7,bw:6,wa:6,gs:7,qu:8,pe:38,ps:1.1,gm:24.4,rg:6,om:4.5,de:0.55,fcf:16,kurs:98,s1:88,s2:78,w1:108,w2:118,ez:'85-94$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 88-94$ attraktiv.',p1:'108-116$',p3:'128-148$',up1:'+12%',up3:'+38%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend. eCommerce treibt.',sum:'Walmart transformiert sich. eCommerce +22%. Walmart+ wächst.',bw_t:'KGV 38 - eCommerce rechtfertigt.',wa_t:'eCommerce +22%.',gs_t:'FCF 16 Mrd. $.',qu_t:'McMillon: Transformation führend.',st:['eCommerce +22%','Walmart+ wächst','Preissetzungsmacht'],ri:['Margen niedrig','Amazon','Verbraucherflaute'],qrev:'180,5 Mrd. $',qbr:'+2%',qeps:'0,61 $',qbe:'+5%',qm:'4,5%',qi:'Q4 FY2025 - eCommerce +22%.',ar1:'~740 Mrd. $ FY26',ar2:'~782 Mrd. $ FY27',ae1:'~2,65 $ FY26',ae2:'~3 $ FY27',guid:'FY2026: 3,5-4,5%.',rat:'Buy',tgt:'108$',ac:32},
+{t:'APP',n:'AppLovin',s:'Mobile AI / Advertising / AXON',cat:'Software',sc:8,bw:6,wa:10,gs:7,qu:8,pe:55,ps:25,gm:75,rg:73,om:48,de:1.5,fcf:4.8,kurs:382,s1:320,s2:260,w1:440,w2:510,ez:'305-360$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 310-360$ attraktiv.',p1:'440-500$',p3:'580-720$',up1:'+22%',up3:'+65%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Explosiver Aufwärtstrend. AXON überzeugt.',sum:'AXON KI-Engine revolutioniert Mobile Advertising. 73% Wachstum.',bw_t:'KGV 55 für 73% fair.',wa_t:'73% Wachstum. AXON dominiert.',gs_t:'FCF 4,8 Mrd. $.',qu_t:'Adam Foroughi unterschätzt.',st:['73% Wachstum','AXON überragend','48% OM'],ri:['Mobile Gaming','E-Commerce unbewiesen','Schulden'],qrev:'1,48 Mrd. $',qbr:'+6%',qeps:'1,67 $',qbe:'+18%',qm:'48,3%',qi:'Q1 2026 - E-Commerce startet.',ar1:'~6,2 Mrd. $ 2026',ar2:'~8,5 Mrd. $ 2027',ae1:'~6,50 $ 2026',ae2:'~9 $ 2027',guid:'Q2: 1,2-1,22 Mrd. $.',rat:'Strong Buy',tgt:'500$',ac:20},
+{t:'BKNG',n:'Booking Holdings',s:'Online Travel / Booking.com',cat:'Tech',sc:8,bw:8,wa:6,gs:7,qu:8,pe:24,ps:5.5,gm:82,rg:9,om:30,de:1.8,fcf:5.8,kurs:5450,s1:4850,s2:4250,w1:5900,w2:6500,ez:'4700-5200$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 4750-5100$ ideal.',p1:'5900-6300$',p3:'7000-8200$',up1:'+12%',up3:'+35%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend.',sum:'Booking.com + Priceline. 30% OM. Globaler Marktführer.',bw_t:'KGV 24 für 30% Margin günstig.',wa_t:'9% stabil.',gs_t:'FCF 5,8 Mrd. $.',qu_t:'AI differenziert.',st:['Globaler Leader','30% OM','FCF 5,8 Mrd. $'],ri:['Google Travel','Regulierung','Zyklisch'],qrev:'4,76 Mrd. $',qbr:'+3%',qeps:'24,81 $',qbe:'+10%',qm:'30,1%',qi:'Q1 2026 - Rooms +8%.',ar1:'~24 Mrd. $ 2026',ar2:'~27 Mrd. $ 2027',ae1:'~230 $ 2026',ae2:'~265 $ 2027',guid:'Stabil. AI als Catalyst.',rat:'Buy',tgt:'5900$',ac:28},
+{t:'UBER',n:'Uber',s:'Mobility / Delivery / Autonomous',cat:'Tech',sc:7,bw:7,wa:7,gs:7,qu:7,pe:28,ps:3.8,gm:39,rg:18,om:9,de:0.85,fcf:2.8,kurs:88,s1:75,s2:62,w1:98,w2:115,ez:'72-85$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 74-83$ attraktiv.',p1:'98-112$',p3:'130-170$',up1:'+17%',up3:'+65%',sent:'Bullisch',sig:'🟢 Leicht Bullisch',trend:'Aufwärtstrend. Profitabilisierung.',sum:'Uber endlich profitabel. Mobility + Delivery. Robotaxi-Option.',bw_t:'KGV 28 für 18% fair.',wa_t:'Gross Bookings +18%.',gs_t:'FCF 2,8 Mrd. $.',qu_t:'Robotaxi-Partnerschaften klug.',st:['Endlich profitabel','Mobility + Delivery','Robotaxi-Option'],ri:['Waymo','EU-Regulierung','Fahrer'],qrev:'11,5 Mrd. $',qbr:'+3%',qeps:'0,83 $',qbe:'+12%',qm:'9,4%',qi:'Q1 2026 - Bookings +18%.',ar1:'~48 Mrd. $ 2026',ar2:'~56 Mrd. $ 2027',ae1:'~3,20 $ 2026',ae2:'~4,50 $ 2027',guid:'+17-21% 2026.',rat:'Strong Buy',tgt:'110$',ac:32},
+{t:'ABNB',n:'Airbnb',s:'Travel Marketplace',cat:'Tech',sc:7,bw:7,wa:6,gs:8,qu:7,pe:28,ps:7,gm:82,rg:11,om:19,de:0.12,fcf:4.2,kurs:148,s1:128,s2:110,w1:165,w2:185,ez:'122-142$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 125-140$ attraktiv.',p1:'165-182$',p3:'200-250$',up1:'+15%',up3:'+50%',sent:'Neutral-Bullisch',sig:'🟡 Neutral',trend:'Konsolidierung.',sum:'82% Bruttomarge außergewöhnlich. Profitabel, FCF stark.',bw_t:'KGV 28 für 82% Marge fair.',wa_t:'Nights booked +8%.',gs_t:'FCF 4,2 Mrd. $.',qu_t:'Brian Chesky solid.',st:['82% Marge','FCF 4,2 Mrd. $','Netzwerkeffekt'],ri:['Städte-Regulierung','Hotels','Abschwung'],qrev:'2,27 Mrd. $',qbr:'+2%',qeps:'0,83 $',qbe:'+8%',qm:'19,2%',qi:'Q1 2026 - Nights +8%.',ar1:'~10,2 Mrd. $ 2026',ar2:'~11,5 Mrd. $ 2027',ae1:'~4,80 $ 2026',ae2:'~5,80 $ 2027',guid:'Sommer 2026 stärkstes Q.',rat:'Buy',tgt:'165$',ac:28},
+{t:'LRCX',n:'Lam Research',s:'Semiconductor Equipment / Etch',cat:'Semis',sc:7,bw:7,wa:7,gs:8,qu:8,pe:20,ps:6.5,gm:47,rg:18,om:28,de:0.45,fcf:4.5,kurs:88,s1:78,s2:68,w1:99,w2:112,ez:'74-85$',ef:'#f5c518',eb:'Fair',ez_t:'KGV 20 fair. Rücksetzer 78-84$ attraktiv.',p1:'99-108$',p3:'125-148$',up1:'+16%',up3:'+55%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Aufwärtstrend. Halbleiter-Zyklus dreht.',sum:'Kritisch für Chip-Produktion. Etch + Dep Equipment.',bw_t:'KGV 20 günstig.',wa_t:'18% Wachstum.',gs_t:'FCF 4,5 Mrd. $.',qu_t:'Tim Archer solid.',st:['Kritisches Equipment','KGV 20 günstig','FCF 4,5 Mrd. $'],ri:['China-Export','Halbleiter-Zyklus','ASML/AMAT'],qrev:'4,72 Mrd. $',qbr:'+4%',qeps:'1,04 $',qbe:'+6%',qm:'28,2%',qi:'Q3 FY2025 - Stark.',ar1:'~19 Mrd. $ FY26',ar2:'~22 Mrd. $ FY27',ae1:'~4,10 $ FY26',ae2:'~5 $ FY27',guid:'FY2026 stark.',rat:'Buy',tgt:'100$',ac:22},
+{t:'SNOW',n:'Snowflake',s:'Cloud Data / Analytics',cat:'Software',sc:6,bw:4,wa:8,gs:6,qu:7,pe:null,ps:14.2,gm:67,rg:26,om:-4,de:0.02,fcf:0.8,kurs:148,s1:125,s2:105,w1:172,w2:200,ez:'115-135$',ef:'#ff4d6d',eb:'Spekulativ',ez_t:'Spekulativer Einstieg. Kleine Position.',p1:'165-190$',p3:'200-280$',up1:'+20%',up3:'+65%',sent:'Spekulativ',sig:'🟡 Neutral',trend:'Seitwärtstrend. Boden bildet sich.',sum:'26% Wachstum, unprofitabel. Databricks Konkurrenz.',bw_t:'KUV 14 - Verluste riskant.',wa_t:'26% Wachstum.',gs_t:'Kaum Schulden.',qu_t:'Neuer CEO. Databricks stark.',st:['26% Wachstum','AI Data Cloud','Kaum Schulden'],ri:['Unprofitabel','Databricks','Hohes KUV'],qrev:'987 Mio. $',qbr:'+3%',qeps:'0,24 $',qbe:'+5%',qm:'-3,8%',qi:'Q4 FY2025 - Solide.',ar1:'~4,3 Mrd. $ FY26',ar2:'~5,5 Mrd. $ FY27',ae1:'~1,20 $ FY26',ae2:'~1,80 $ FY27',guid:'~24% Wachstum.',rat:'Hold',tgt:'165$',ac:28},
+{t:'PYPL',n:'PayPal',s:'Digital Payments / Fintech',cat:'Fintech',sc:6,bw:7,wa:5,gs:7,qu:6,pe:16,ps:2.5,gm:46,rg:5,om:18,de:0.55,fcf:5.5,kurs:72,s1:62,s2:52,w1:82,w2:95,ez:'58-68$',ef:'#f5c518',eb:'Fair',ez_t:'KGV 16 günstig. Turnaround unsicher.',p1:'82-92$',p3:'100-130$',up1:'+18%',up3:'+55%',sent:'Neutral',sig:'🟡 Neutral',trend:'Turnaround-Versuch. Erholung von Tief.',sum:'KGV 16 günstig. Neuer CEO Alex Chriss versucht Turnaround.',bw_t:'KGV 16 günstig.',wa_t:'5% Wachstum - Turnaround startet.',gs_t:'FCF 5,5 Mrd. $.',qu_t:'Alex Chriss neu. Unsicher.',st:['KGV 16 günstig','FCF 5,5 Mrd. $','Brand bekannt'],ri:['Apple Pay/Google Pay','Verlangsamung','Turnaround unsicher'],qrev:'7,79 Mrd. $',qbr:'+1%',qeps:'1,33 $',qbe:'+4%',qm:'18,2%',qi:'Q1 2026 - TPV +4%.',ar1:'~32 Mrd. $ 2026',ar2:'~34 Mrd. $ 2027',ae1:'~5,50 $ 2026',ae2:'~6,20 $ 2027',guid:'Branded Checkout Fokus.',rat:'Hold',tgt:'80$',ac:35},
+{t:'NEE',n:'NextEra Energy',s:'Renewable Energy / AI Power',cat:'Energy',sc:7,bw:6,wa:7,gs:6,qu:8,pe:22,ps:4.8,gm:55,rg:8,om:18,de:1.8,fcf:5,kurs:78,s1:70,s2:62,w1:86,w2:95,ez:'68-75$',ef:'#f5c518',eb:'Fair',ez_t:'KI-Strombedarf steigt. Rücksetzer 70-75$ ideal.',p1:'86-93$',p3:'102-118$',up1:'+13%',up3:'+38%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Erholung. KI-Strom-Nachfrage treibt.',sum:'Weltgrößter Erneuerbarer. KI-Rechenzentren brauchen Strom.',bw_t:'KGV 22 fair für Utilities.',wa_t:'8% Wachstum. KI-Strombedarf.',gs_t:'FCF 5 Mrd. $.',qu_t:'John Ketchum solid.',st:['KI treibt Strom','~2,8% Dividende','Erneuerbare Leader'],ri:['Zinsen schädlich','Regulierung','Hohe Schulden'],qrev:'5,74 Mrd. $',qbr:'+3%',qeps:'0,91 $',qbe:'+5%',qm:'18,2%',qi:'Q1 2026 - KI-Verträge.',ar1:'~24 Mrd. $ 2026',ar2:'~26 Mrd. $ 2027',ae1:'~3,45 $ 2026',ae2:'~3,75 $ 2027',guid:'EPS +6-8% p.a.',rat:'Buy',tgt:'90$',ac:20},
+{t:'CAT',n:'Caterpillar',s:'Heavy Equipment / Infrastructure',cat:'Industrial',sc:7,bw:7,wa:5,gs:7,qu:8,pe:16,ps:2.5,gm:37,rg:4,om:18,de:1.2,fcf:9,kurs:368,s1:332,s2:295,w1:402,w2:438,ez:'322-355$',ef:'#f5c518',eb:'Fair',ez_t:'KGV 16 günstig.',p1:'402-430$',p3:'465-520$',up1:'+12%',up3:'+32%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend. Infrastruktur-Boom.',sum:'Weltmarktführer Baumaschinen. ~2,5% Dividende.',bw_t:'KGV 16 günstig.',wa_t:'Infrastruktur Rückenwind.',gs_t:'FCF 9 Mrd. $.',qu_t:'Jim Umpleby solid.',st:['Weltmarktführer','~2,5% Dividende','Infrastruktur-Boom'],ri:['Konjunktur-sensitiv','China','Rohstoffe'],qrev:'14,2 Mrd. $',qbr:'+2%',qeps:'5,60 $',qbe:'+4%',qm:'18,3%',qi:'Q1 2026 - Solide.',ar1:'~57 Mrd. $ 2026',ar2:'~60 Mrd. $ 2027',ae1:'~22 $ 2026',ae2:'~24 $ 2027',guid:'2026 moderat.',rat:'Buy',tgt:'405$',ac:20},
+{t:'MCD',n:"McDonald's",s:'Fast Food / Franchise',cat:'Consumer',sc:7,bw:7,wa:5,gs:6,qu:8,pe:24,ps:8.5,gm:56,rg:4,om:47,de:6,fcf:7,kurs:312,s1:280,s2:248,w1:340,w2:375,ez:'272-300$',ef:'#f5c518',eb:'Fair',ez_t:'47% OM Franchise. ~2,3% Dividende. Rücksetzer attraktiv.',p1:'340-365$',p3:'395-440$',up1:'+12%',up3:'+32%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend.',sum:"McDonald's: 47% OM durch Franchise. Defensiv + Dividende.",bw_t:'KGV 24 für Franchise fair.',wa_t:'4% Wachstum. Value-Strategie.',gs_t:'FCF 7 Mrd. $.',qu_t:'Chris Kempczinski solid.',st:['47% OM außergewöhnlich','Franchise unangreifbar','~2,3% Dividende'],ri:['Value-Druck','E.Coli-Nachwirkungen','Schulden'],qrev:'6,19 Mrd. $',qbr:'+2%',qeps:'2,67 $',qbe:'+4%',qm:'47,2%',qi:'Q1 2026 - Erholung.',ar1:'~25,5 Mrd. $ 2026',ar2:'~27 Mrd. $ 2027',ae1:'~12 $ 2026',ae2:'~13,50 $ 2027',guid:'Komps-Wachstum. Value wirkt.',rat:'Buy',tgt:'345$',ac:28},
+{t:'SBUX',n:'Starbucks',s:'Coffee / Loyalty Program',cat:'Consumer',sc:6,bw:6,wa:4,gs:6,qu:7,pe:28,ps:2.2,gm:28,rg:2,om:12,de:3.5,fcf:3.2,kurs:85,s1:76,s2:67,w1:96,w2:108,ez:'72-82$',ef:'#f5c518',eb:'Fair',ez_t:'Turnaround unter Brian Niccol. KGV 28.',p1:'96-105$',p3:'118-140$',up1:'+17%',up3:'+50%',sent:'Neutral',sig:'🟡 Neutral',trend:'Bodenbildung. Brian Niccol als Katalysator.',sum:'Turnaround unter Brian Niccol. Loyalty 35 Mio. Nutzer. China Risiko.',bw_t:'KGV 28 wenn Turnaround liefert.',wa_t:'2% Wachstum. China schwächelt.',gs_t:'FCF 3,2 Mrd. $.',qu_t:'Brian Niccol sehr gut.',st:['Brian Niccol stark','Loyalty 35 Mio.','Marke global'],ri:['China','Turnaround unsicher','Schulden'],qrev:'8,76 Mrd. $',qbr:'-2%',qeps:'0,41 $',qbe:'-5%',qm:'12,2%',qi:'Q2 FY2025 - Schwächer.',ar1:'~36 Mrd. $ FY26',ar2:'~39 Mrd. $ FY27',ae1:'~3 $ FY26',ae2:'~3,80 $ FY27',guid:'Turnaround auf Kurs.',rat:'Hold',tgt:'95$',ac:30},
+{t:'HOOD',n:'Robinhood',s:'Retail Investing / Crypto / AI',cat:'Fintech',sc:6,bw:6,wa:8,gs:6,qu:6,pe:22,ps:8.5,gm:88,rg:58,om:24,de:0.18,fcf:0.6,kurs:48,s1:40,s2:32,w1:56,w2:66,ez:'36-46$',ef:'#f5c518',eb:'Fair',ez_t:'58% Wachstum. Rücksetzer 40-44$ attraktiv.',p1:'56-64$',p3:'75-100$',up1:'+22%',up3:'+80%',sent:'Bullisch',sig:'🟢 Leicht Bullisch',trend:'Starker Aufwärtstrend. Krypto + Gold.',sum:'58% Umsatzwachstum. Gold + Krypto als neue Säulen.',bw_t:'KGV 22 für 58% Wachstum günstig.',wa_t:'58% Wachstum.',gs_t:'FCF positiv.',qu_t:'Vlad Tenev solid.',st:['58% Wachstum','Gold + Krypto','88% Marge'],ri:['Regulierung','Krypto-Volatilität','Noch klein'],qrev:'927 Mio. $',qbr:'+8%',qeps:'0,33 $',qbe:'+20%',qm:'24,1%',qi:'Q1 2026 - Rekord.',ar1:'~3,8 Mrd. $ 2026',ar2:'~4,8 Mrd. $ 2027',ae1:'~1,50 $ 2026',ae2:'~2,20 $ 2027',guid:'2026: ~45% Wachstum.',rat:'Buy',tgt:'58$',ac:15},
+{t:'RTX',n:'RTX (Raytheon)',s:'Defense / Aerospace / Engines',cat:'Aerospace',sc:7,bw:7,wa:6,gs:7,qu:7,pe:35,ps:2.2,gm:20,rg:8,om:10,de:0.85,fcf:5.8,kurs:142,s1:128,s2:112,w1:158,w2:175,ez:'124-136$',ef:'#f5c518',eb:'Fair',ez_t:'Rücksetzer 128-136$ attraktiv.',p1:'158-172$',p3:'190-220$',up1:'+14%',up3:'+38%',sent:'Bullisch',sig:'🟢 Bullisch',trend:'Stabiler Aufwärtstrend. Patriot + P&W.',sum:'Pratt & Whitney + Patriot Raketen. Globale Aufrüstung.',bw_t:'KGV 35 fair.',wa_t:'Patriot-Nachfrage explodiert.',gs_t:'FCF 5,8 Mrd. $.',qu_t:'Greg Hayes solid.',st:['Patriot explodiert','P&W unverzichtbar','~2,2% Dividende'],ri:['P&W GTF Problem','Regulierung','Konjunktur'],qrev:'20,3 Mrd. $',qbr:'+3%',qeps:'1,21 $',qbe:'+6%',qm:'10,2%',qi:'Q1 2026 - Defense stark.',ar1:'~82 Mrd. $ 2026',ar2:'~88 Mrd. $ 2027',ae1:'~5,80 $ 2026',ae2:'~6,50 $ 2027',guid:'2026: 83-84 Mrd. $.',rat:'Buy',tgt:'165$',ac:20},
+{t:'COIN',n:'Coinbase',s:'Crypto Exchange / Web3',cat:'Fintech',sc:6,bw:4,wa:7,gs:6,qu:6,pe:28,ps:8.5,gm:72,rg:45,om:22,de:0.55,fcf:2.2,kurs:225,s1:188,s2:152,w1:262,w2:308,ez:'175-215$',ef:'#ff4d6d',eb:'Spekulativ',ez_t:'Sehr volatil. Nur wenn du an Krypto glaubst.',p1:'262-300$',p3:'350-500$',up1:'+22%',up3:'+85%',sent:'Spekulativ Bullisch',sig:'🟡 Neutral',trend:'Sehr volatil. Bitcoin bestimmt.',sum:'US-Krypto-Marktführer. Profitabel bei BTC >60k$.',bw_t:'KGV 28 - aber zyklisch.',wa_t:'45% Wachstum aber zyklisch.',gs_t:'FCF 2,2 Mrd. $.',qu_t:'Brian Armstrong Pionier.',st:['US-Krypto-Leader','Profitabel bei hohem BTC','Regulierung favorisiert'],ri:['Extrem zyklisch','SEC','BTC-Abhängigkeit'],qrev:'2,03 Mrd. $',qbr:'+8%',qeps:'1,94 $',qbe:'+15%',qm:'22,3%',qi:'Q1 2026 - Starkes Krypto.',ar1:'~7 Mrd. $ 2026',ar2:'~5 Mrd. $ 2027',ae1:'~7 $ 2026',ae2:'~5 $ 2027',guid:'Von Krypto-Markt abhängig.',rat:'Hold',tgt:'250$',ac:18},
+];
+// Vercel Server API - kein CORS Problem!
+async function getQ(sym){
+  try{
+    const r=await fetch('/api/quote?sym='+encodeURIComponent(sym));
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(d.ok&&parseFloat(d.price)>0){
+      return {c:parseFloat(d.price),ch:d.change,pct:d.changePct,pc:parseFloat(d.price)-parseFloat(d.change||0)};
+    }
+  }catch(e){}
+  return null;
+}
+async function getC(sym){
+  try{
+    const r=await fetch('/api/chart?sym='+encodeURIComponent(sym));
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(d.ok&&d.c&&d.c.length>3)return d;
+  }catch(e){}
+  return null;
+}
+
+const CATS=['Alle','Software','Semis','Security','Cloud','Hardware','Social','Finance','Healthcare','Fintech','Media','Tech','Retail','Automotive','Aerospace','Energy','Industrial','Consumer'];
+let CUR=null,TAB='analyse',CAT='Alle',Q='';
+let PR={},LD={},CD={};
+const G=id=>document.getElementById(id);
+const SC=s=>s>=7?'#00e5a0':s>=5?'#f5c518':'#ff4d6d';
+const SB=s=>`<div class="sbar-bg"><div style="width:${s*10}%;height:100%;background:${SC(s)};border-radius:4px"></div></div>`;
+const filtered=()=>DB.filter(c=>(CAT==='Alle'||c.cat===CAT)&&(!Q||c.t.includes(Q)||c.n.toUpperCase().includes(Q)||c.s.toUpperCase().includes(Q)));
+
+async function loadPrice(sym){
+  if(LD[sym])return;
+  LD[sym]=true;
+  const d=await getQ(sym);
+  LD[sym]=false;
+  if(d&&d.c&&d.c>0){
+    PR[sym]={p:parseFloat(d.c).toFixed(2),c:parseFloat(d.ch||0).toFixed(2),pct:parseFloat(d.pct||0).toFixed(2),ok:true};
+  } else {
+    const co=DB.find(x=>x.t===sym);
+    PR[sym]={p:(co?co.kurs:0).toString(),c:'0.00',pct:'0.00',ok:false};
+  }
+  if(CUR===sym)drawDetail();else drawList();
+}
+async function refreshPrice(sym){delete PR[sym];LD[sym]=false;await loadPrice(sym);}
+function refreshAll(){PR={};LD={};filtered().slice(0,25).forEach(c=>loadPrice(c.t));}
+
+function pH(sym,big){
+  const d=PR[sym];
+  if(!d){loadPrice(sym);const s=big?18:12;return `<span style="width:${s}px;height:${s}px;border:2px solid #2d3748;border-top-color:#00e5a0;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle"></span>`;}
+  const pos=parseFloat(d.c)>=0,col=!d.ok?'#6b7280':pos?'#00e5a0':'#ff4d6d',arr=pos?'▲':'▼';
+  if(!d.ok)return `<span style="color:#6b7280;font-size:${big?22:13}px;font-weight:700">${d.p}$</span>`;
+  return `<span style="font-size:${big?22:13}px;font-weight:700;color:${col}">${d.p}$</span> <span style="font-size:${big?13:11}px;color:${col}">${arr}${Math.abs(d.c)} (${Math.abs(d.pct)}%)</span>`;
+}
+
+async function loadCandles(sym){
+  if(CD[sym]!==undefined)return; CD[sym]=null;
+  const d=await getC(sym); if(d)CD[sym]=d;
+  if(CUR===sym&&TAB==='chart')drawDetail();
+}
+
+function makeSVG(sym,co){
+  const data=CD[sym];
+  const W=Math.min(window.innerWidth-34,620),H=230,PL=46,PR2=12,PT=18,PB=30;
+  const CW=W-PL-PR2,CH=H-PT-PB;
+  let prices,highs,lows,real=false;
+  if(data&&data.c&&data.c.length>2){prices=data.c;highs=data.h;lows=data.l;real=true;}
+  else{
+    const n=24;prices=[];highs=[];lows=[];
+    for(let i=0;i<n;i++){const t=i/n,base=co.s2+(co.kurs-co.s2)*Math.pow(t,0.7),noise=(Math.random()-0.5)*0.03*base;prices.push(base+noise);highs.push((base+noise)*1.015);lows.push((base+noise)*0.985);}
+  }
+  const n=prices.length,minP=Math.min(...lows)*0.98,maxP=Math.max(...highs)*1.02,rng=maxP-minP;
+  if(rng===0)return '<p style="color:#6b7280;padding:20px">Keine Daten</p>';
+  const px=i=>PL+(i/(n-1))*CW,py=v=>PT+CH-((v-minP)/rng)*CH;
+  const up=prices[n-1]>prices[0],lc=up?'#00e5a0':'#ff4d6d';
+  let path=`M${px(0)},${py(prices[0])}`;
+  for(let i=1;i<n;i++)path+=` L${px(i)},${py(prices[i])}`;
+  const area=path+` L${px(n-1)},${PT+CH} L${PL},${PT+CH} Z`;
+  const yg=[];for(let i=0;i<=4;i++){const v=minP+(rng/4)*i;yg.push({v,y:py(v)});}
+  const zones=[{v:co.s2,c:'#00e5a0',l:'S2'},{v:co.s1,c:'#00e5a0',l:'S1'},{v:co.w1,c:'#ff4d6d',l:'W1'},{v:co.w2,c:'#ff4d6d',l:'W2'}].filter(z=>z.v>=minP&&z.v<=maxP);
+  const id='cg'+sym.replace('.','');
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">
+  <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${lc}" stop-opacity="0.22"/><stop offset="100%" stop-color="${lc}" stop-opacity="0"/></linearGradient>
+  <clipPath id="cp${id}"><rect x="${PL}" y="${PT}" width="${CW}" height="${CH}"/></clipPath></defs>
+  ${yg.map(l=>`<line x1="${PL}" y1="${l.y}" x2="${W-PR2}" y2="${l.y}" stroke="#1e2736" stroke-width="1"/><text x="${PL-4}" y="${l.y+4}" fill="#4b5563" font-size="9" text-anchor="end">${l.v>=1000?(l.v/1000).toFixed(1)+'k':Math.round(l.v)}</text>`).join('')}
+  <path d="${area}" fill="url(#${id})" clip-path="url(#cp${id})"/>
+  <path d="${path}" fill="none" stroke="${lc}" stroke-width="2.5" stroke-linecap="round" clip-path="url(#cp${id})"/>
+  ${zones.map(z=>`<g clip-path="url(#cp${id})"><line x1="${PL}" y1="${py(z.v)}" x2="${W-PR2}" y2="${py(z.v)}" stroke="${z.c}" stroke-width="1" stroke-dasharray="5,3" opacity="0.8"/><text x="${PL+3}" y="${py(z.v)-3}" fill="${z.c}" font-size="9">${z.l} ${z.v}$</text></g>`).join('')}
+  <circle cx="${px(n-1)}" cy="${py(prices[n-1])}" r="5" fill="${lc}" stroke="#0a0e1a" stroke-width="2.5"/>
+  <rect x="${px(n-1)-24}" y="${py(prices[n-1])-13}" width="48" height="17" rx="4" fill="${lc}"/>
+  <text x="${px(n-1)}" y="${py(prices[n-1])-2}" fill="#0a0e1a" font-size="10" font-weight="700" text-anchor="middle">${prices[n-1].toFixed(0)}$</text>
+  ${!real?`<text x="${W/2}" y="${H-2}" fill="#374151" font-size="9" text-anchor="middle">Schätzung - echte Daten laden...</text>`:''}
+  </svg>`;
+}
+
+function drawList(){
+  const list=filtered();
+  G('list').innerHTML=list.length===0?`<div style="text-align:center;padding:60px;color:#4b5563">Keine Treffer</div>`:
+  list.map(c=>`<div class="row" onclick="open_('${c.t.replace('.','_')}')">
+    <div style="width:44px;height:44px;background:linear-gradient(135deg,#1a2235,#131b2a);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid #1e2736">
+      <span style="font-size:${c.t.length>3?9:11}px;font-weight:800;color:#00e5a0;letter-spacing:-0.5px">${c.t}</span>
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.n}</div>
+      <div style="font-size:11px;color:#4b5563;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.s}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      <div style="font-size:12px;margin-bottom:4px">${pH(c.t,false)}</div>
+      <div style="display:flex;align-items:center;gap:5px;justify-content:flex-end">
+        <span style="font-size:11px;color:${SC(c.sc)};font-weight:700">● ${c.sc}/10</span>
+        <span class="badge" style="background:${c.ef}18;color:${c.ef};border:1px solid ${c.ef}50">${c.eb}</span>
+      </div>
+    </div>
+  </div>`).join('');
+  G('cnt').textContent=list.length+' Unternehmen';
+}
+
+function drawDetail(){
+  const sym=CUR.replace('_','.'),c=DB.find(x=>x.t===sym);if(!c)return;
+  const tabs=[['analyse','📊'],['chart','📉'],['prognose','🔮'],['quartale','📋'],['zahlen','🔢']];
+  G('detail').innerHTML=`<div class="fade-in" style="padding-bottom:50px">
+  <div style="display:flex;align-items:center;gap:10px;padding:12px 16px 0">
+    <button onclick="close_()" style="background:#1e2736;border:none;border-radius:8px;padding:7px 12px;color:#e6edf3;font-size:13px;cursor:pointer;font-weight:600">← Zurück</button>
+    <div><div style="font-size:16px;font-weight:800">${c.n} <span style="color:#00e5a0;font-size:13px">${c.t}</span></div><div style="font-size:11px;color:#4b5563">${c.s}</div></div>
+  </div>
+  <div style="margin:12px 16px;background:linear-gradient(135deg,#0a1f18,#0f1a2a);border:1px solid #1e4d38;border-radius:14px;padding:16px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:11px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">Live Kurs · Finnhub</div>
+      <div>${pH(sym,true)}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+        <div class="pulse" style="width:6px;height:6px;background:#00e5a0;border-radius:50%"></div>
+        <span style="font-size:10px;color:#4b5563">Echtzeit</span>
+        <button onclick="refreshPrice('${sym}')" style="background:#1e2736;border:none;border-radius:5px;padding:3px 8px;color:#6b7280;font-size:10px;cursor:pointer">🔄</button>
+      </div>
+    </div>
+    <div style="text-align:center">
+      <div style="font-size:52px;font-weight:800;line-height:1;color:${SC(c.sc)}">${c.sc}</div>
+      <div style="font-size:10px;color:#4b5563">/ 10</div>
+      ${c.sc>=7?`<div class="badge" style="margin-top:6px;background:#0f2a22;border:1px solid #00e5a0;color:#00e5a0">★ WATCHLIST</div>`:''}
+    </div>
+  </div>
+  <div style="margin:0 16px 12px;background:#111827;border:1px solid #1e2736;border-radius:12px;padding:13px">
+    <p style="font-size:13px;color:#9ca3af;line-height:1.75">${c.sum}</p>
+  </div>
+  <div class="hscroll" style="margin-bottom:10px">
+    ${tabs.map(([id,ic])=>`<button class="tab ${TAB===id?'active':''}" onclick="setTab('${id}')">${ic} ${id.charAt(0).toUpperCase()+id.slice(1)}</button>`).join('')}
+  </div>
+  <div id="tc" style="padding:0 16px"></div>
+  </div>`;
+  drawTab(c);
+}
+
+function drawTab(c){
+  const el=G('tc');if(!el)return;
+  if(TAB==='analyse')el.innerHTML=rAna(c);
+  else if(TAB==='chart'){el.innerHTML=rChart(c);loadCandles(c.t);}
+  else if(TAB==='prognose')el.innerHTML=rProg(c);
+  else if(TAB==='quartale')el.innerHTML=rQ(c);
+  else el.innerHTML=rZ(c);
+}
+
+function rAna(c){
+  return [['bw','bw_t','📊 Bewertung'],['wa','wa_t','📈 Wachstum'],['gs','gs_t','💪 Finanzen'],['qu','qu_t','🔍 Qualität']].map(([k,t,l])=>
+  `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;color:#9ca3af;font-weight:500">${l}</span><span style="font-size:20px;font-weight:800;color:${SC(c[k])}">${c[k]}<span style="font-size:10px;color:#4b5563;font-weight:400">/10</span></span></div>${SB(c[k])}<p style="font-size:12px;color:#6b7280;line-height:1.7;margin-top:9px">${c[t]}</p></div>`).join('')+
+  `<div class="grid2" style="margin-bottom:10px">
+  <div style="background:#0a1f19;border:1px solid #1e4d38;border-radius:12px;padding:13px">
+    <div style="color:#00e5a0;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:9px">✅ Stärken</div>
+    ${c.st.map(s=>`<div style="display:flex;gap:5px;margin-bottom:7px;font-size:12px;color:#9ca3af;line-height:1.5"><span style="color:#00e5a0;flex-shrink:0">→</span>${s}</div>`).join('')}
+  </div>
+  <div style="background:#1f0a0a;border:1px solid #4d1f1f;border-radius:12px;padding:13px">
+    <div style="color:#ff4d6d;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:9px">⚠️ Risiken</div>
+    ${c.ri.map(r=>`<div style="display:flex;gap:5px;margin-bottom:7px;font-size:12px;color:#9ca3af;line-height:1.5"><span style="color:#ff4d6d;flex-shrink:0">→</span>${r}</div>`).join('')}
+  </div></div>
+  <div style="font-size:10px;color:#374151;text-align:center;padding:4px 0 8px">⚠️ Keine Finanzberatung · Mai 2026</div>`;
+}
+
+function rChart(c){
+  const pd=PR[c.t],lp=pd&&pd.ok?parseFloat(pd.p):c.kurs;
+  const ns=lp<=c.s1*1.06,nr=lp>=c.w1*0.95;
+  return `<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="font-size:13px;font-weight:700">${c.sig}</div>
+    <button onclick="delete CD['${c.t}']; drawTab(DB.find(x=>x.t==='${c.t}'))" style="background:#1e2736;border:none;border-radius:7px;padding:5px 9px;color:#6b7280;font-size:11px;cursor:pointer">🔄 Neu</button>
+  </div>
+  <p style="font-size:12px;color:#6b7280;line-height:1.6">${c.trend}</p>
+  </div>
+  <div class="card" style="padding:14px 6px 12px">
+    <div style="display:flex;justify-content:space-between;padding:0 10px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px">📈 6-Monats-Chart</div>
+      <div style="font-size:10px;color:#4b5563">${CD[c.t]?'Live · Finnhub':'Lädt...'}</div>
+    </div>
+    <div style="overflow-x:auto;padding:0 4px">${makeSVG(c.t,c)}</div>
+    <div style="display:flex;gap:12px;padding:8px 10px 0;font-size:10px;flex-wrap:wrap">
+      <span style="color:#00e5a0">▬ Support</span><span style="color:#ff4d6d">▬ Widerstand</span><span style="color:#00e5a0">● Live-Kurs</span>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">📍 Kurs-Zonen</div>
+    <div class="grid2">
+      ${[['S1 Support',c.s1,'#00e5a0'],['W1 Widerstand',c.w1,'#ff4d6d'],['S2 Starker Support',c.s2,'#00e5a0'],['W2 Nächstes Ziel',c.w2,'#ff4d6d']].map(([l,v,col])=>`
+      <div style="background:#0d1117;border-radius:8px;padding:10px">
+        <div style="font-size:10px;color:#6b7280">${l}</div>
+        <div style="font-size:16px;font-weight:700;color:${col};margin-top:3px">${v}$</div>
+        <div style="font-size:10px;color:#374151;margin-top:2px">${v>lp?'+':''}${((v/lp-1)*100).toFixed(1)}%</div>
+      </div>`).join('')}
+    </div>
+    ${ns?`<div style="margin-top:10px;background:#0a1f19;border:1px solid #1e4d38;border-radius:8px;padding:10px;font-size:12px;color:#00e5a0">✅ Nahe Support – potenziell guter Einstiegsbereich</div>`:''}
+    ${nr?`<div style="margin-top:10px;background:#1f0a0a;border:1px solid #4d1f1f;border-radius:8px;padding:10px;font-size:12px;color:#ff4d6d">⚠️ Nahe Widerstand – Vorsicht beim Neueinstieg</div>`:''}
+  </div>
+  <div style="background:#111827;border:1px solid ${c.ef}33;border-radius:12px;padding:15px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px">🎯 Ideale Einstiegszone</div>
+      <span class="badge" style="background:${c.ef}18;color:${c.ef};border:1px solid ${c.ef}50">${c.eb}</span>
+    </div>
+    <div style="font-size:22px;font-weight:800;color:${c.ef};margin-bottom:7px">${c.ez}</div>
+    <p style="font-size:12px;color:#6b7280;line-height:1.6">${c.ez_t}</p>
+  </div>
+  <div style="font-size:10px;color:#374151;text-align:center;padding:4px 0 8px">⚠️ Keine Finanzberatung · Finnhub wenn verfügbar</div>`;
+}
+
+function rProg(c){
+  return `<div class="card">
+  <div style="font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">🧭 Sentiment</div>
+  <div style="font-size:15px;font-weight:700;color:#00e5a0;margin-bottom:12px">${c.sent}</div>
+  <div class="grid2">
+    <div style="background:#0a1f19;border:1px solid #1e4d38;border-radius:10px;padding:10px">
+      <div style="font-size:10px;color:#4b5563">Analysten-Rating</div>
+      <div style="font-size:15px;font-weight:700;color:#00e5a0;margin-top:3px">${c.rat}</div>
+      <div style="font-size:10px;color:#374151">${c.ac} Analysten</div>
+    </div>
+    <div style="background:#0a1f19;border:1px solid #1e4d38;border-radius:10px;padding:10px">
+      <div style="font-size:10px;color:#4b5563">Kursziel Median</div>
+      <div style="font-size:15px;font-weight:700;color:#00e5a0;margin-top:3px">${c.tgt}</div>
+    </div>
+  </div></div>
+  <div class="card">
+    <div style="font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">📅 Prognose 1 Jahr</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:26px;font-weight:800;color:#00e5a0">${c.p1}</div>
+      <div style="background:#0a1f19;border:1px solid #1e4d38;border-radius:10px;padding:8px 13px;text-align:center">
+        <div style="font-size:10px;color:#4b5563">Upside</div>
+        <div style="font-size:20px;font-weight:800;color:#00e5a0">${c.up1}</div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#6b7280;line-height:1.65">Basierend auf Analystenkonsens und Fundamentaldaten.</p>
+  </div>
+  <div class="card">
+    <div style="font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">📅 Prognose 3 Jahre</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:26px;font-weight:800;color:#f5c518">${c.p3}</div>
+      <div style="background:#1a1205;border:1px solid #f5c518;border-radius:10px;padding:8px 13px;text-align:center">
+        <div style="font-size:10px;color:#4b5563">Upside</div>
+        <div style="font-size:20px;font-weight:800;color:#f5c518">${c.up3}</div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#6b7280;line-height:1.65">Langfristige Schätzung basierend auf Wachstumstrend und Marktposition.</p>
+  </div>
+  <div style="background:#1a1205;border:1px solid #3d2f0a;border-radius:10px;padding:13px;margin-bottom:8px">
+    <p style="font-size:11px;color:#9ca3af;line-height:1.6">⚠️ <strong style="color:#f5c518">Wichtig:</strong> Prognosen sind Schätzungen. Kurse können stark fallen. Eigene Recherche immer nötig.</p>
+  </div>`;
+}
+
+function rQ(c){
+  const bc=v=>parseFloat(v)>0?'#00e5a0':parseFloat(v)<0?'#ff4d6d':'#6b7280';
+  return `<div class="card">
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">📊 Letzte Quartalszahlen</div>
+  <div style="font-size:11px;color:#4b5563;margin-bottom:12px;padding:8px;background:#0d1117;border-radius:8px">${c.qi}</div>
+  <div class="grid2">
+    <div style="background:#0d1117;border-radius:8px;padding:12px">
+      <div style="font-size:10px;color:#6b7280;margin-bottom:4px">💰 Umsatz</div>
+      <div style="font-size:16px;font-weight:700">${c.qrev}</div>
+      <div style="font-size:11px;font-weight:700;color:${bc(c.qbr)};margin-top:4px">vs. Erwartung: ${c.qbr}</div>
+    </div>
+    <div style="background:#0d1117;border-radius:8px;padding:12px">
+      <div style="font-size:10px;color:#6b7280;margin-bottom:4px">📈 EPS</div>
+      <div style="font-size:16px;font-weight:700">${c.qeps}</div>
+      <div style="font-size:11px;font-weight:700;color:${bc(c.qbe)};margin-top:4px">vs. Erwartung: ${c.qbe}</div>
+    </div>
+    <div style="background:#0d1117;border-radius:8px;padding:12px;grid-column:1/-1">
+      <div style="font-size:10px;color:#6b7280;margin-bottom:4px">📊 Operating Margin</div>
+      <div style="font-size:16px;font-weight:700">${c.qm}</div>
+    </div>
+  </div></div>
+  <div class="card">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">📈 Analysten-Prognosen</div>
+    <table class="tbl">
+      <tr><td style="color:#6b7280;font-size:11px">Umsatz Jahr 1</td><td style="text-align:right;font-weight:700;color:#00e5a0">${c.ar1}</td></tr>
+      <tr><td style="color:#6b7280;font-size:11px">Umsatz Jahr 2</td><td style="text-align:right;font-weight:700;color:#00e5a0">${c.ar2}</td></tr>
+      <tr><td style="color:#6b7280;font-size:11px">EPS Jahr 1</td><td style="text-align:right;font-weight:700;color:#f5c518">${c.ae1}</td></tr>
+      <tr><td style="color:#6b7280;font-size:11px">EPS Jahr 2</td><td style="text-align:right;font-weight:700;color:#f5c518">${c.ae2}</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">🎯 Unternehmens-Guidance</div>
+    <p style="font-size:13px;color:#9ca3af;line-height:1.75">${c.guid}</p>
+  </div>
+  <div style="font-size:10px;color:#374151;text-align:center;padding:4px 0 8px">⚠️ SEC Filings, Earnings Releases · Mai 2026</div>`;
+}
+
+function rZ(c){
+  const rows=[['KGV (P/E)',c.pe?c.pe+'x':'n/a','Kurs / Gewinn'],['KUV (P/S)',c.ps+'x','Kurs / Umsatz'],['Umsatzwachstum',c.rg>0?'+'+c.rg+'%':c.rg+'%','YoY'],['Bruttomarge',c.gm+'%','Rohertragsmarge'],['Operating Margin',c.om+'%','Betriebsgewinnmarge'],['Debt/Equity',c.de+'x','Schulden/Eigenkapital'],['Free Cash Flow',c.fcf+' Mrd. $','Freier Cashflow']];
+  return `<div class="card" style="padding:0"><table class="tbl">${rows.map(([l,w,i])=>`<tr><td style="padding:12px 16px"><div style="font-weight:600;font-size:13px">${l}</div><div style="font-size:10px;color:#4b5563;margin-top:2px">${i}</div></td><td style="padding:12px 16px;text-align:right;font-weight:700;color:#00e5a0;font-size:14px">${w}</td></tr>`).join('')}</table></div>
+  <div style="font-size:10px;color:#374151;text-align:center;padding:10px 0">⚠️ Mai 2026 · Keine Finanzberatung</div>`;
+}
+
+function open_(id){CUR=id;TAB='analyse';G('lv').style.display='none';G('dv').style.display='block';drawDetail();window.scrollTo(0,0);}
+function close_(){CUR=null;G('dv').style.display='none';G('lv').style.display='block';drawList();window.scrollTo(0,0);}
+function setTab(t){TAB=t;const sym=CUR.replace('_','.');const c=DB.find(x=>x.t===sym);if(c)drawTab(c);document.querySelectorAll('.tab').forEach(el=>{const id=el.getAttribute('onclick').match(/'(\w+)'/)[1];el.className='tab'+(id===t?' active':'');});}
+function setCat(c){CAT=c;Q='';G('srch').value='';drawList();document.querySelectorAll('.cc').forEach(el=>{const s=el.dataset.c;el.style.background=s===c?'#0a1f19':'#1a1f2e';el.style.color=s===c?'#00e5a0':'#6b7280';el.style.borderColor=s===c?'#00e5a0':'transparent';});}
+function doSearch(v){Q=v.toUpperCase();CAT='Alle';drawList();}
+
+G('root').innerHTML=`
+<div id="lv">
+  <div class="sticky-hdr">
+    <div style="padding:12px 16px 8px;display:flex;align-items:center;gap:8px">
+      <div style="font-size:22px;font-weight:800;letter-spacing:-1px;color:#00e5a0;flex-shrink:0">STOCK<span style="color:#e6edf3">LENS</span> <span style="font-size:10px;font-weight:400;color:#4b5563;letter-spacing:0">PRO</span></div>
+      <div style="flex:1;display:flex;align-items:center;background:#111827;border:1px solid #1e2736;border-radius:9px;padding:0 10px">
+        <span style="color:#4b5563;font-size:14px;margin-right:6px">🔍</span>
+        <input id="srch" type="text" placeholder="NVDA, Apple, Semis..." oninput="doSearch(this.value)" style="flex:1;background:transparent;border:none;padding:9px 0;color:#e6edf3;font-size:14px">
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+        <div class="pulse" style="width:6px;height:6px;background:#00e5a0;border-radius:50%"></div>
+        <span style="font-size:10px;color:#4b5563">Live</span>
+        <button onclick="refreshAll()" title="Alle Kurse aktualisieren" style="background:#1e2736;border:none;border-radius:7px;padding:5px 8px;color:#00e5a0;font-size:12px;cursor:pointer">🔄</button>
+      </div>
+    </div>
+    <div class="hscroll" style="padding-bottom:10px">
+      ${CATS.map(c=>`<button class="cc chip" data-c="${c}" onclick="setCat('${c}')" style="flex-shrink:0;padding:5px 12px;border-radius:20px;border:1px solid ${c==='Alle'?'#00e5a0':'transparent'};font-size:11px;font-weight:500;background:${c==='Alle'?'#0a1f19':'#1a1f2e'};color:${c==='Alle'?'#00e5a0':'#6b7280'}">${c}</button>`).join('')}
+    </div>
+    <div style="padding:4px 16px 6px;display:flex;justify-content:space-between;border-bottom:1px solid #0f1624">
+      <span id="cnt" style="font-size:12px;color:#4b5563">${DB.length} Unternehmen</span>
+      <span style="font-size:11px;color:#2d3748">Antippen für Details</span>
+    </div>
+  </div>
+  <div id="list"></div>
+</div>
+<div id="dv" style="display:none"><div id="detail"></div></div>`;
+
+drawList();
+DB.slice(0,20).forEach(c=>loadPrice(c.t));
+</script></body></html>
