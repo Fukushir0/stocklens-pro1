@@ -1,6 +1,61 @@
+bash
+
+cat << 'EOF'
 {
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "version": 2,
+  "builds": [
+    {
+      "src": "public/index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "api/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/quote",
+      "dest": "/api/quote.js"
+    },
+    {
+      "src": "/api/chart",
+      "dest": "/api/chart.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/index.html"
+    }
   ]
 }
+EOF
+Ausgabe
+
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "public/index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "api/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/quote",
+      "dest": "/api/quote.js"
+    },
+    {
+      "src": "/api/chart",
+      "dest": "/api/chart.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/index.html"
+    }
+  ]
+}
+Fertig
